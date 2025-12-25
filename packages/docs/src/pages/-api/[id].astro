@@ -1,0 +1,33 @@
+---
+import "../../styles/global.css";
+import TableOfContents from "../../components/table-of-contents.astro";
+import { getCollection, render } from "astro:content";
+import { markdownId } from "../../utils";
+import Main from "../../layouts/main.astro";
+
+export async function getStaticPaths() {
+  const apiDocs = await getCollection("api");
+
+  return apiDocs.map((apiDoc) => {
+    return {
+      params: { id: markdownId(apiDoc.filePath!) },
+      props: { apiDoc },
+    };
+  });
+}
+
+const { apiDoc } = Astro.props;
+const { Content, headings } = await render(apiDoc);
+---
+
+<Main>
+  <TableOfContents includeDepths={[2, 3]} headings={headings}>
+    <div slot="before-menu">
+      <ul class="not-prose">
+        <li><a href="/fs-testkit">← Main Docs</a></li>
+        <li><a href="/fs-testkit/-api">← API Index</a></li>
+      </ul>
+    </div>
+  </TableOfContents>
+  <Content />
+</Main>

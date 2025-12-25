@@ -1,0 +1,82 @@
+---
+import "../../styles/global.css";
+
+import { render, getCollection } from "astro:content";
+import { markdownId } from "../../utils";
+import TableOfContents from "../../components/table-of-contents.astro";
+import Main from "../../layouts/main.astro";
+
+const indexMenuItems = (
+  await Promise.all(
+    (await getCollection("api")).map(async (apiDoc) => {
+      const rendered = await render(apiDoc);
+      const mainHeading = rendered.headings.find(
+        (heading) => heading.depth === 1,
+      );
+      const id = markdownId(apiDoc.filePath!);
+
+      return {
+        id,
+        href: `/fs-testkit/-api/${id}`,
+        text: mainHeading?.text,
+      };
+    }),
+  )
+).reduce(
+  function (items, entry) {
+    if (entry.id === "indexjs") {
+      items.unshift(entry);
+    } else {
+      items.push(entry);
+    }
+
+    return items;
+  },
+  [] as { id: string; href: string; text: string | undefined }[],
+);
+
+const classes = indexMenuItems.filter(({ id }) => id.includes("Class"));
+const modules = indexMenuItems.filter(({ text, id }) => {
+  return (
+    text &&
+    !id.includes("TypeAlias") &&
+    !id.includes("Interface") &&
+    !id.includes("Class") &&
+    !id.includes("Function") &&
+    !id.includes("modules") &&
+    !["home", "types"].includes(id)
+  );
+});
+---
+
+<Main>
+  <TableOfContents headings={[]}>
+    <div slot="before-menu"><a href="/fs-testkit">← Main Docs</a></div>
+  </TableOfContents>
+  <h1>API Index</h1>
+
+  <h2>Modules</h2>
+  <ul>
+    {
+      modules.map((item) => {
+        return (
+          <li>
+            <a href={item.href}>{item.text}.js</a>
+          </li>
+        );
+      })
+    }
+  </ul>
+  <h2>Classes</h2>
+  <ul>
+    {
+      classes.map((item) => {
+        return (
+          <li>
+            <a href={item.href}>{item.text!.replace("Class: ", "")}</a>
+          </li>
+        );
+      })
+    }
+  </ul>
+</Main>

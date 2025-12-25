@@ -1,0 +1,144 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@utility prose-xl {
+  line-height: 1.4;
+}
+
+@utility prose {
+  font-family: "Neue DIN", var(--font-sans), sans-serif;
+
+  /* apply the max-container width to everything top-level that's not a pre tag */
+  > *:not(pre) {
+    max-width: var(--container-3xl);
+  }
+
+  pre {
+    /* Pull out pre of body margin but keep text aligned */
+    margin-left: calc(var(--spacing) * -8);
+    padding-left: calc(var(--spacing) * 8);
+    border-radius: 0;
+    line-height: 1.5;
+    margin-top: calc(var(--spacing) * 4);
+    margin-bottom: calc(var(--spacing) * 4);
+  }
+
+  pre + p {
+    margin-bottom: calc(var(--spacing) * -1);
+  }
+
+  code {
+    font-size: unset;
+    font-family: Fira Code;
+    font-style: normal !important;
+
+    &::before,
+    &::after {
+      display: none;
+    }
+  }
+
+  pre > code {
+    font-size: var(--text-base);
+  }
+
+  /* all inline code styles */
+  :not(pre) > code {
+    border: 1px solid var(--color-gray-300);
+    border-radius: 4px;
+    padding: 0 0.25rem;
+    margin: 0 0.1rem;
+    background-color: var(--color-gray-100);
+  }
+
+  /* inline styles within paragraphs */
+  p code {
+    font-size: var(--text-lg);
+  }
+
+  @media (width < 64rem) {
+    pre > code,
+    p code {
+      font-size: unset;
+    }
+  }
+
+  h2 a,
+  h3 a,
+  h4 a,
+  h5 a,
+  h6 a {
+    text-decoration: underline;
+    text-decoration-color: var(--color-gray-300);
+    text-underline-offset: 4px;
+    text-decoration-thickness: 3px;
+  }
+
+  h2:has(a)::before,
+  h3:has(a)::before,
+  h4:has(a)::before,
+  h5:has(a)::before,
+  h6:has(a)::before {
+    display: inline;
+    content: "# ";
+  }
+
+  /*
+    The tailwind typography module doesn't treat h5 or h6 headings,
+    so these are best efforts
+  */
+  h5,
+  h6 {
+    margin-top: 1em;
+    margin-bottom: 0.4em;
+  }
+}
+
+@font-face {
+  font-family: "Fira Code";
+  src: url("/fs-testkit/fonts/FiraCode-Light.woff2") format("woff2");
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Fira Code";
+  src: url("/fs-testkit/fonts/FiraCode-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Fira Code";
+  src: url("/fs-testkit/fonts/FiraCode-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Fira Code";
+  src: url("/fs-testkit/fonts/FiraCode-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Fira Code";
+  src: url("/fs-testkit/fonts/FiraCode-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Neue DIN";
+  src: url("/fs-testkit/fonts/NeueDIN-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Neue DIN";
+  src: url("/fs-testkit/fonts/NeueDIN-SemiBold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+}

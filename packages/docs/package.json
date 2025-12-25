@@ -1,0 +1,31 @@
+{
+  "name": "@fs-testkit/docs",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "pnpm build:api && pnpm build:astro",
+    "build:astro": "astro build",
+    "build:api": "typedoc",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/mdx": "^4.3.13",
+    "astro": "^5.17.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.19",
+    "@tailwindcss/vite": "^4.1.18",
+    "rehype-autolink-headings": "^7.1.0",
+    "rehype-slug": "^6.0.0",
+    "tailwindcss": "^4.1.18",
+    "typedoc": "^0.28.16",
+    "typedoc-gitlab-wiki-theme": "^2.1.0",
+    "typedoc-plugin-markdown": "^4.10.0"
+  },
+  "prettier": {
+    "proseWrap": "always"
+  }
+}

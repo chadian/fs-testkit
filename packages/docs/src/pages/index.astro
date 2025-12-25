@@ -1,0 +1,16 @@
+---
+import "../styles/global.css";
+import { getHeadings, Content } from "../markdown/docs.md";
+import TableOfContents from "../components/table-of-contents.astro";
+import Main from "../layouts/main.astro";
+---
+
+<Main>
+  <TableOfContents headings={getHeadings()}>
+    <ul slot="before-menu">
+      <li><a href="https://github.com/chadian/fs-testkit">→ Github</a></li>
+      <li><a href="/fs-testkit/-api">→ API Documenation</a></li>
+    </ul>
+  </TableOfContents>
+  <Content />
+</Main>

@@ -1,0 +1,24 @@
+{
+  "entryPoints": ["../fs-testkit/src"],
+  "entryPointStrategy": "expand",
+  "exclude": [
+    "**/*.test.js",
+    "**/*.vitest.js",
+    "**/assertions/**/*",
+    "**/test-utils/**/*",
+    "**/utils/**",
+    "**/git.js",
+    "**/*-operations.js"
+  ],
+  "tsconfig": "../fs-testkit/tsconfig.json",
+  "out": "./api",
+  "plugin": ["typedoc-gitlab-wiki-theme", "typedoc-plugin-markdown"],
+  "flattenOutputFiles": true,
+  "hideBreadcrumbs": true,
+  "hidePageHeader": true,
+  "excludeExternals": false,
+  "useCodeBlocks": true,
+  "parametersFormat": "table",
+  "cleanOutputDir": true,
+  "excludeInternal": true
+}

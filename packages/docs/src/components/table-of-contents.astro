@@ -1,0 +1,75 @@
+---
+import type { MarkdownHeading } from "astro";
+
+const { headings, includeDepths } = Astro.props;
+
+interface Props {
+  headings: MarkdownHeading[];
+  includeDepths?: number[];
+}
+---
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const tableOfContents = document.querySelector(
+      "[data-table-of-contents]",
+    ) as HTMLElement;
+    const tableOfContentsMenuButton = document.querySelector(
+      "[data-table-of-contents-menu-button]",
+    );
+
+    tableOfContentsMenuButton?.addEventListener("click", () => {
+      tableOfContents.dataset.tableOfContentsShow = String(
+        !(tableOfContents.dataset.tableOfContentsShow === "true"),
+      );
+    });
+  });
+</script>
+
+<button
+  class="hidden mb-4 cursor-pointer border-1 hover:border-gray-400 py px-1.5 rounded-sm
+    max-lg:block"
+  data-table-of-contents-menu-button
+>
+  Contents
+</button>
+<ol
+  class="not-prose
+    fixed
+    right-8
+    top-0
+    bottom-0
+    pt-8
+    pb-8
+    max-lg:pr-0
+    pr-8
+    overflow-auto
+    max-lg:static
+    [@media(max-height:500px)]:static
+    max-lg:data-[table-of-contents-show=true]:block
+    max-lg:data-[table-of-contents-show=false]:hidden"
+  data-table-of-contents
+  data-table-of-contents-show="false"
+>
+  <slot name="before-menu" />
+
+  <hr class="mt-1 mb-2" />
+
+  {
+    headings
+      .filter((heading) =>
+        includeDepths
+          ? includeDepths.includes(heading.depth)
+          : heading.depth === 2,
+      )
+      .map((heading) => {
+        return (
+          <li class={`mt-0`}>
+            <a href={`#${heading.slug}`}>{heading.text}</a>
+          </li>
+        );
+      })
+  }
+
+  <slot name="after-menu" />
+</ol>
