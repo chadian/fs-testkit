@@ -13,7 +13,10 @@ export const CleanUpRegistry = {
    * @param {string} cleanupOptions.path
    */
   register(target, cleanupOptions) {
-    this.finalizationRegistry.register(target, cleanupOptions);
+    this.finalizationRegistry.register(target, {
+      ...cleanupOptions,
+      logs: false,
+    });
     process.once(
       "beforeExit",
       cleanup.bind(null, { ...cleanupOptions, logs: false }),
