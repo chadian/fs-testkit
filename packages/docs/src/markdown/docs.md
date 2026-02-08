@@ -34,7 +34,7 @@ npm install --save-dev fs-testkit
 
 Using `fs-testkit` starts with a [`Sandbox`](#sandbox) instance. A sandbox is
 tied to an underlying root directory on the filesystem. All of the functionality
-and features of this library are avaliable from this sandbox instance.
+and features of this library are available from this sandbox instance.
 
 ```js
 import { createSandbox } from "fs-testkit";
@@ -114,7 +114,7 @@ The `Dir.treeString` output from above would log:
 ```
 
 Often tests involving the filesystem compare before and after, or even multiple
-states. `fs-testkit` provides snaphshots for this:
+states. `fs-testkit` provides snapshots for this:
 
 ```js
 await sandbox.snapshot.create("before-change");
@@ -294,7 +294,7 @@ Under the hood automatic cleanup works by performing two passes:
    root directory is also deleted from the filesystem. This aims to keep the
    sandbox root directory lifespan in sync with the corresponding `Sandbox`
    instance.
-2. If the `Sandbox` instance is held on to for some reason and is never garabge
+2. If the `Sandbox` instance is held on to for some reason and is never garbage
    collected then the clean up happens when the
    [`beforeExit`](https://nodejs.org/fs-testkit/-api/process.html#event-beforeexit)
    event is fired.
@@ -597,7 +597,7 @@ See the [API documentation](/fs-testkit/-api/file.Class.File) for more details.
 
 ## Snapshots
 
-Snapshots take caoture current state of the filesystem when they are created.
+Snapshots capture the current state of the filesystem when they are created.
 They make it easier to perform a diff between two states or even to return the
 filesystem to a previous state. Snapshot methods are accessed via
 `Sandbox.snapshot`, see the full
