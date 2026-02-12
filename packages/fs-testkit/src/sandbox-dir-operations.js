@@ -1,5 +1,6 @@
 /**
  * @typedef {import('./dir.js').Dir} Dir
+ * @typedef {import('./file.js').File} File
  * @typedef {import('./git.js').Git} Git
  * @typedef {import('./sandbox.js').Sandbox} Sandbox
  * @typedef {import('node:fs/promises')} Fs
@@ -91,5 +92,20 @@ export class SandboxDirOperations {
       ...options,
       withFileTypes: true,
     });
+  }
+
+  /**
+   * @param {Dir} dir the destination directory being copied to
+   * @param {File | Dir} fileOrDir
+   * @param {import("node:fs").CopyOptions} [options]
+   * @returns {Promise<void>}
+   */
+  async cp(dir, fileOrDir, options) {
+    const src = fileOrDir.absolutePath;
+    // For `fileOrDir`, the resulting path of using either `Dir.file` or `Dir.dir`
+    // is the same for the purpose of the final `absolutePath` used for the
+    // destination path
+    const dest = dir.file(fileOrDir.name).absolutePath;
+    return this.#fs.cp(src, dest, options);
   }
 }
