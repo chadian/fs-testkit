@@ -17,6 +17,7 @@ export function mockSandboxFsOps(sandbox) {
     access: sinon.stub(sandbox.dirOps, "access"),
     rename: sinon.stub(sandbox.dirOps, "rename"),
     move: sinon.stub(sandbox.dirOps, "move"),
+    cp: sinon.stub(sandbox.dirOps, "cp"),
   };
 
   const fileOpsStubs = {
