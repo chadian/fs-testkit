@@ -402,4 +402,59 @@ export class Dir {
       includeDirs,
     });
   }
+
+  /**
+   * Copies a file or directory into the current directory
+   * @param {File | Dir} fileOrDir
+   * @param {object} [options]
+   * @param {boolean} [options.overwrite]
+   * @param {boolean} [options.recursive] defaults to
+   * @returns {Promise<void>}
+   */
+  async copy(fileOrDir, options) {
+    const destDir = this;
+
+    if (!(await destDir.exists())) {
+      throw new Error(
+        `Directory "${destDir.name}" must exist before directory or files can be copied into it`,
+      );
+    }
+
+    options = {
+      overwrite: false,
+      recursive: true,
+      ...options,
+    };
+
+    if (fileOrDir.parent?.absolutePath === destDir.absolutePath) {
+      throw new Error(`Cannot copy "${fileOrDir.name}" to its same parent`);
+    }
+
+    const alreadyExists =
+      (
+        await Promise.all([
+          destDir.file(fileOrDir.name).exists(),
+          destDir.dir(fileOrDir.name).exists(),
+        ])
+      ).find(Boolean) ?? false;
+
+    if (alreadyExists && !options.overwrite) {
+      throw new Error(
+        `A file or directory already exists as "${fileOrDir.name}" at "${destDir.path || "{sandbox root}"}"`,
+      );
+    }
+
+    if (!(fileOrDir instanceof File) && !(fileOrDir instanceof Dir)) {
+      throw new Error(
+        `Expected first argument of Dir.copy to be an instance of either File or Dir`,
+      );
+    }
+
+    return this.#sandbox.dirOps.cp(destDir, fileOrDir, {
+      errorOnExist: true,
+      force: options.overwrite,
+      recursive: options.recursive,
+    });
+  }
+
 }
