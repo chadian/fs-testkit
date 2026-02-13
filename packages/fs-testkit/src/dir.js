@@ -47,7 +47,7 @@ export class Dir {
   }
 
   /**
-   * The directory's relative path
+   * The directory's relative path. Returns an empty string ("") if path is the sandbox root.
    * @returns {string}
    */
   get path() {
