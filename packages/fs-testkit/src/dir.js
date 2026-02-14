@@ -127,6 +127,8 @@ export class Dir {
 
   /**
    * Returns true if the `File` or `Dir` argument is contained by the directory, otherwise false.
+   * This method does not check if anything exists on the filesystem. Use the `exists` method
+   * on `File` or `Dir` instances to check if they exist on the filesystem.
    * @param {File | Dir} fileOrDir
    * @returns {boolean}
    */
@@ -407,8 +409,11 @@ export class Dir {
    * Copies a file or directory into the current directory
    * @param {File | Dir} fileOrDir
    * @param {object} [options]
-   * @param {boolean} [options.overwrite]
-   * @param {boolean} [options.recursive] defaults to
+   * @param {boolean} [options.overwrite] defaults to false
+   * @param {boolean} [options.recursive] defaults to true
+   * @param {boolean} [options.contentsOnly] defaults to true - Applies only when copying directories,
+   * when true it copies the contents of the directory (equivalent to `cp src/ dist`),
+   * when false it copies the directory and its contents (equivalent to `cp src dist`)
    * @returns {Promise<void>}
    */
   async copy(fileOrDir, options) {
@@ -423,6 +428,7 @@ export class Dir {
     options = {
       overwrite: false,
       recursive: true,
+      contentsOnly: true,
       ...options,
     };
 
@@ -454,7 +460,26 @@ export class Dir {
       errorOnExist: true,
       force: options.overwrite,
       recursive: options.recursive,
+      contentsOnly: options.contentsOnly,
     });
   }
 
+  /**
+   * Copies an file or directory at an absolute path from outside the sandbox into the current directory
+   * @param {string} absolutePath
+   * @returns {Promise<void>}
+   */
+  async copyFromExternal(absolutePath) {
+    if (typeof absolutePath !== "string") {
+      throw new Error(
+        `The first argument of Dir.copyFromExternal must be a string, got "${typeof absolutePath}"`,
+      );
+    }
+
+    if (contains(this.#sandbox.root.absolutePath, absolutePath)) {
+      throw new Error(
+        `Absolute path ${absolutePath} should be outside of the sandbox root directory ${this.#sandbox.root.absolutePath}. Use the \`Dir.copy\` method for copying files or directories within a sandbox`,
+      );
+    }
+  }
 }

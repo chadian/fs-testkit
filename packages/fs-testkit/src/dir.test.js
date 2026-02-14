@@ -877,6 +877,7 @@ describe("Dir", () => {
       errorOnExist: true,
       force: false,
       recursive: true,
+      contentsOnly: true,
     });
 
     /** @type { File } */
@@ -941,6 +942,7 @@ describe("Dir", () => {
       const specifiedOptions = {
         overwrite: true,
         recursive: false,
+        contentsOnly: false,
       };
 
       await destDir.copy(fileToCopy, specifiedOptions);
@@ -951,6 +953,7 @@ describe("Dir", () => {
         {
           force: specifiedOptions.overwrite,
           recursive: specifiedOptions.recursive,
+          contentsOnly: specifiedOptions.contentsOnly,
           errorOnExist: defaultDirOpsCpOptions.errorOnExist,
         },
       ]);
