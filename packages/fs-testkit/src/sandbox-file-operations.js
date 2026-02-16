@@ -95,4 +95,16 @@ export class SandboxFileOperations {
   async stat(file, options) {
     return this.#fs.stat(file.absolutePath, options);
   }
+
+  /**
+   * @param {File} srcFile
+   * @param {Dir} destDir
+   * @param {import("node:fs").CopyOptions & { as?: string }} [options]
+   * @returns {Promise<void>}
+   */
+  async cp(srcFile, destDir, options) {
+    let src = srcFile.absolutePath;
+    let dest = destDir.file(options?.as ?? srcFile.name).absolutePath;
+    return this.#fs.cp(src, dest, options);
+  }
 }

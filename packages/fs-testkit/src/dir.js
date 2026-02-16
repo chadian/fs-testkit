@@ -406,9 +406,12 @@ export class Dir {
   }
 
   /**
-   * Copies a file or directory into the current directory
-   * @param {File | Dir} fileOrDir
+   * Copies a file or directory into the current directory. See `contentsOnly` option for control over
+   * copying the directory or its contents.
+   * @param {Dir} destDir
    * @param {object} [options]
+   * @param {string} [options.as] defaults to undefined - when copying the directory and not its contents
+   * the directory copied can be renamed as specified by the `options.as`
    * @param {boolean} [options.overwrite] defaults to false
    * @param {boolean} [options.recursive] defaults to true
    * @param {boolean} [options.contentsOnly] defaults to true - Applies only when copying directories,
@@ -416,8 +419,22 @@ export class Dir {
    * when false it copies the directory and its contents (equivalent to `cp src dist`)
    * @returns {Promise<void>}
    */
-  async copy(fileOrDir, options) {
-    const destDir = this;
+  async copyTo(destDir, options) {
+    options = {
+      overwrite: false,
+      recursive: true,
+      contentsOnly: true,
+      as: undefined,
+      ...options,
+    };
+
+    const srcDir = this;
+
+    if (!(destDir instanceof Dir)) {
+      throw new Error(
+        `Expected first argument of Dir.copyTo to be a \`Dir\` instance`,
+      );
+    }
 
     if (!(await destDir.exists())) {
       throw new Error(
@@ -425,42 +442,38 @@ export class Dir {
       );
     }
 
-    options = {
-      overwrite: false,
-      recursive: true,
-      contentsOnly: true,
-      ...options,
-    };
-
-    if (fileOrDir.parent?.absolutePath === destDir.absolutePath) {
-      throw new Error(`Cannot copy "${fileOrDir.name}" to its same parent`);
+    if (!(await srcDir.exists())) {
+      throw new Error(
+        `Directory "${srcDir.name}" must exist before it can be copied`,
+      );
     }
 
+    if (options.contentsOnly && options.as) {
+      throw new Error(
+        `The \`options.contentsOnly\` cannot be true while also specifying the options.as\``,
+      );
+    }
+
+    // `alreadyExists` checks for the case that a singular directory (not its contents)
+    // are attempting to be copied to a destination directory but already exists either
+    // as its `options.as` name if specified or the source directory's name
     const alreadyExists =
-      (
-        await Promise.all([
-          destDir.file(fileOrDir.name).exists(),
-          destDir.dir(fileOrDir.name).exists(),
-        ])
-      ).find(Boolean) ?? false;
+      !options.overwrite &&
+      !options.contentsOnly &&
+      (await destDir.dir(options?.as ?? srcDir.name).exists());
 
-    if (alreadyExists && !options.overwrite) {
+    if (alreadyExists) {
       throw new Error(
-        `A file or directory already exists as "${fileOrDir.name}" at "${destDir.path || "{sandbox root}"}"`,
+        `A file or directory already exists as "${srcDir.name}" at "${destDir.path || "{sandbox root}"}"`,
       );
     }
 
-    if (!(fileOrDir instanceof File) && !(fileOrDir instanceof Dir)) {
-      throw new Error(
-        `Expected first argument of Dir.copy to be an instance of either File or Dir`,
-      );
-    }
-
-    return this.#sandbox.dirOps.cp(destDir, fileOrDir, {
+    return this.#sandbox.dirOps.cp(srcDir, destDir, {
       errorOnExist: true,
       force: options.overwrite,
       recursive: options.recursive,
       contentsOnly: options.contentsOnly,
+      as: options.as,
     });
   }
 

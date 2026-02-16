@@ -280,6 +280,37 @@ describe("Dirs", () => {
       },
     ]);
   });
+
+  test("#copy (dir, contents only)", async () => {
+    const sandbox = await createSandbox();
+
+    const dirA = sandbox.root.dir("dirA");
+    await dirA.create();
+    await dirA.file("README.md").create(``);
+    const dirB = sandbox.root.dir("dirB");
+    await dirB.create();
+    assert.strictEqual(
+      await sandbox.root.treeString(),
+      `
+.
+├── dirA
+│   └── README.md
+└── dirB
+`.trim(),
+    );
+
+    await dirA.copyTo(dirB, { contentsOnly: true });
+    assert.strictEqual(
+      await sandbox.root.treeString(),
+      `
+.
+├── dirA
+│   └── README.md
+└── dirB
+    └── README.md
+`.trim(),
+    );
+  });
 });
 
 describe("Files", async () => {

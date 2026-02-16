@@ -863,77 +863,54 @@ describe("Dir", () => {
     ]);
   });
 
-  describe("#copy", () => {
+  describe("#copyTo", () => {
     /** @type {Dir} */
+    let srcDir;
+
+    /** @type { Dir } */
     let destDir;
 
     /** @type {ReturnType<mockSandboxFsOps>['dirOpsStubs']} */
     let dirOpsStubs;
-
-    /** @type {ReturnType<mockSandboxFsOps>['fileOpsStubs']} */
-    let fileOpsStubs;
 
     const defaultDirOpsCpOptions = Object.freeze({
       errorOnExist: true,
       force: false,
       recursive: true,
       contentsOnly: true,
+      as: undefined,
     });
-
-    /** @type { File } */
-    let fileToCopy;
-
-    /** @type { Dir } */
-    let dirToCopy;
 
     /**
      * using all sinon matchers for `withArgs` to workaround this issue:
        https://github.com/sinonjs/sinon/issues/1572
-     * @param {File | Dir} fileOrDir 
+     * @param {Dir} dir 
      * @param {boolean} exists 
      */
-    const mockfileOrDirExists = (fileOrDir, exists) => {
+    const mockDirExists = (dir, exists) => {
       dirOpsStubs.exists
-        .withArgs(sinon.match.has("path", fileOrDir.path))
-        .resolves(exists);
-      fileOpsStubs.exists
-        .withArgs(sinon.match.has("path", fileOrDir.path))
+        .withArgs(sinon.match.has("path", dir.path))
         .resolves(exists);
     };
 
     beforeEach(() => {
-      destDir = sandbox.dir("hello-world");
+      srcDir = sandbox.dir("src-dir");
+      destDir = sandbox.dir("dest-dir");
 
       const mockFsOps = mockSandboxFsOps(sandbox);
-
       dirOpsStubs = mockFsOps.dirOpsStubs;
+
       dirOpsStubs.cp.resolves();
-      fileOpsStubs = mockFsOps.fileOpsStubs;
-
-      fileToCopy = sandbox.file("some-file.md");
-      dirToCopy = sandbox.dir("some-directory");
-
-      mockfileOrDirExists(destDir, true);
-      mockfileOrDirExists(fileToCopy, true);
-      mockfileOrDirExists(dirToCopy, true);
-    });
-
-    test("it can copy a file", async () => {
-      await destDir.copy(fileToCopy);
-      assert.strictEqual(dirOpsStubs.cp.calledOnce, true);
-      assert.deepEqual(dirOpsStubs.cp.firstCall.args, [
-        destDir,
-        fileToCopy,
-        defaultDirOpsCpOptions,
-      ]);
+      mockDirExists(srcDir, true);
+      mockDirExists(destDir, true);
     });
 
     test("it can copy a directory", async () => {
-      await destDir.copy(dirToCopy);
+      await srcDir.copyTo(destDir);
       assert.strictEqual(dirOpsStubs.cp.calledOnce, true);
       assert.deepEqual(dirOpsStubs.cp.firstCall.args, [
+        srcDir,
         destDir,
-        dirToCopy,
         defaultDirOpsCpOptions,
       ]);
     });
@@ -943,55 +920,49 @@ describe("Dir", () => {
         overwrite: true,
         recursive: false,
         contentsOnly: false,
+        as: "renamed-dir",
       };
 
-      await destDir.copy(fileToCopy, specifiedOptions);
+      await srcDir.copyTo(destDir, specifiedOptions);
       assert.strictEqual(dirOpsStubs.cp.calledOnce, true);
       assert.deepEqual(dirOpsStubs.cp.firstCall.args, [
+        srcDir,
         destDir,
-        fileToCopy,
         {
           force: specifiedOptions.overwrite,
           recursive: specifiedOptions.recursive,
           contentsOnly: specifiedOptions.contentsOnly,
           errorOnExist: defaultDirOpsCpOptions.errorOnExist,
+          as: "renamed-dir",
         },
       ]);
     });
 
-    test("it throws when the first argument passed in is neither a `File` nor `Dir` instance", async () => {
+    test("it throws when the first argument passed in is not a `Dir` instance", async () => {
       await assert.rejects(
         () =>
-          // eslint-disable-next-line jsdoc/reject-any-type
-          destDir.copy(/** @type {any} */ ("not a file or directory instance")),
+          srcDir.copyTo(
+            // eslint-disable-next-line jsdoc/reject-any-type
+            /** @type {any} */ ("not a file or directory instance"),
+          ),
         {
           message:
-            "Expected first argument of Dir.copy to be an instance of either File or Dir",
+            "Expected first argument of Dir.copyTo to be a `Dir` instance",
         },
       );
     });
 
-    test("it throws when it tries to copy to the same parent directory", async () => {
-      await assert.rejects(
-        async () => {
-          await destDir.copy(/** @type {File} */ (destDir.file(destDir.name)));
-        },
-        { message: `Cannot copy "hello-world" to its same parent` },
-      );
-    });
+    test("it throws when the source directory does not exist", async () => {
+      mockDirExists(srcDir, false);
 
-    test("it throws when the source directory does not exist when trying to copy", async () => {
-      const file = /** @type {File} */ (destDir.file(destDir.name));
-      mockfileOrDirExists(file, false);
-
-      await assert.rejects(async () => destDir.copy(file), {
-        message: `Cannot copy "hello-world" to its same parent`,
+      await assert.rejects(async () => srcDir.copyTo(destDir), {
+        message: `Directory "src-dir" must exist before it can be copied`,
       });
     });
 
     describe("option: overwite", async () => {
       test("it defaults to false", async () => {
-        await destDir.copy(fileToCopy);
+        await srcDir.copyTo(destDir);
         assert.strictEqual(dirOpsStubs.cp.calledOnce, true);
         assert.strictEqual(dirOpsStubs.cp.firstCall.args[2]?.force, false);
         assert.strictEqual(
@@ -1001,7 +972,7 @@ describe("Dir", () => {
       });
 
       test("it accepts a passed in true value", async () => {
-        await destDir.copy(fileToCopy, { overwrite: true });
+        await srcDir.copyTo(destDir, { overwrite: true });
         assert.strictEqual(dirOpsStubs.cp.calledOnce, true);
         assert.strictEqual(dirOpsStubs.cp.firstCall.args[2]?.force, true);
         assert.strictEqual(
@@ -1010,12 +981,17 @@ describe("Dir", () => {
         );
       });
 
-      test("it throws when overwrite: false is set and the file or directory already exists at the location being copied to", async () => {
-        mockfileOrDirExists(destDir.file(fileToCopy.name), true);
+      test("it throws when overwrite: false and contentsOnly: false, and the file or directory already exists at the location being copied to", async () => {
+        mockDirExists(destDir.dir(srcDir.name), true);
+
         await assert.rejects(
-          async () => await destDir.copy(fileToCopy, { overwrite: false }),
+          async () =>
+            await srcDir.copyTo(destDir, {
+              contentsOnly: false,
+              overwrite: false,
+            }),
           {
-            message: `A file or directory already exists as "some-file.md" at "hello-world"`,
+            message: `A file or directory already exists as "src-dir" at "dest-dir"`,
           },
         );
       });
