@@ -1,3 +1,4 @@
+import { Dir } from "./dir.js";
 import { buildPath } from "./utils/build-path.js";
 import { extname, resolve } from "node:path";
 import * as prettier from "prettier";
@@ -6,7 +7,6 @@ import { createPatch, diffLines } from "diff";
 import { fileOidHash } from "./utils/git-oid.js";
 
 /**
- * @typedef {import('./dir.js').Dir} Dir
  * @typedef {import('./git.js').Git} Git
  * @typedef {import('./sandbox.js').Sandbox} Sandbox
  * @typedef {import('./sandbox-file-operations.js').SandboxFileOperations} SandboxFileOperations
@@ -148,6 +148,55 @@ export class File {
 
     await this.#sandbox.fileOps.move(file, newParent);
     return moved;
+  }
+
+  /**
+   * @param {Dir} destDir
+   * @param {object} [options]
+   * @param {boolean} [options.overwrite]
+   * @param {string} [options.as]
+   * @returns {Promise<void>}
+   */
+  async copyTo(destDir, options) {
+    options = {
+      overwrite: false,
+      ...options,
+    };
+
+    const srcFile = this;
+
+    if (!(destDir instanceof Dir)) {
+      throw new Error(
+        `Expected first argument of File.copyTo to be a \`Dir\` instance`,
+      );
+    }
+
+    if (!(await destDir.exists())) {
+      throw new Error(
+        `Directory "${destDir.name}" must exist before directory or files can be copied into it`,
+      );
+    }
+
+    if (!(await srcFile.exists())) {
+      throw new Error(
+        `File "${srcFile.name}" must exist before it can be copied`,
+      );
+    }
+
+    const alreadyExists =
+      !options.overwrite &&
+      (await destDir.file(options?.as ?? srcFile.name).exists());
+
+    if (alreadyExists) {
+      throw new Error(
+        `A file or directory already exists as "${srcFile.name}" at "${destDir.path || "{sandbox root}"}"`,
+      );
+    }
+
+    return this.#sandbox.fileOps.cp(srcFile, destDir, {
+      force: options.overwrite,
+      as: options.as,
+    });
   }
 
   /**

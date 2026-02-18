@@ -1,5 +1,6 @@
 import { beforeEach, describe, test, afterEach } from "node:test";
 import { File } from "./file.js";
+import { Dir } from "./dir.js";
 import assert from "node:assert";
 import * as sinon from "sinon";
 import { resolve } from "node:path";
@@ -751,6 +752,131 @@ describe("File", () => {
         SNAPSHOT_TWO,
         { path: file.path },
       ]);
+    });
+  });
+
+  describe("#copyTo", () => {
+    /** @type { File } */
+    let srcFile;
+
+    /** @type { Dir } */
+    let destDir;
+
+    /** @type {ReturnType<mockSandboxFsOps>['dirOpsStubs']} */
+    let dirOpsStubs;
+
+    /** @type {ReturnType<mockSandboxFsOps>['fileOpsStubs']} */
+    let fileOpsStubs;
+
+    /**
+     * using all sinon matchers for `withArgs` to workaround this issue:
+       https://github.com/sinonjs/sinon/issues/1572
+     * @param {Dir} dir 
+     * @param {boolean} exists 
+     */
+    const mockDirExists = (dir, exists) => {
+      dirOpsStubs.exists
+        .withArgs(sinon.match.has("path", dir.path))
+        .resolves(exists);
+    };
+
+    /**
+     * using all sinon matchers for `withArgs` to workaround this issue:
+       https://github.com/sinonjs/sinon/issues/1572
+     * @param {File} file 
+     * @param {boolean} exists 
+     */
+    const mockFileExists = (file, exists) => {
+      fileOpsStubs.exists
+        .withArgs(sinon.match.has("path", file.path))
+        .resolves(exists);
+    };
+
+    const defaultFileOpsCpOptions = Object.freeze({
+      force: false,
+      as: undefined,
+    });
+
+    beforeEach(() => {
+      srcFile = sandbox.file("src-file.md");
+      destDir = sandbox.dir("dest-dir");
+
+      const mockFsOps = mockSandboxFsOps(sandbox);
+      dirOpsStubs = mockFsOps.dirOpsStubs;
+      fileOpsStubs = mockFsOps.fileOpsStubs;
+
+      dirOpsStubs.cp.resolves();
+      mockFileExists(srcFile, true);
+      mockDirExists(destDir, true);
+    });
+
+    test("it can copy a file", async () => {
+      await srcFile.copyTo(destDir);
+      assert.strictEqual(fileOpsStubs.cp.calledOnce, true);
+      assert.deepEqual(fileOpsStubs.cp.firstCall.args, [
+        srcFile,
+        destDir,
+        defaultFileOpsCpOptions,
+      ]);
+    });
+
+    test("specified options are passed through", async () => {
+      const specifiedOptions = {
+        overwrite: true,
+        as: "renamed-file",
+      };
+
+      await srcFile.copyTo(destDir, specifiedOptions);
+      assert.strictEqual(fileOpsStubs.cp.calledOnce, true);
+      assert.deepEqual(fileOpsStubs.cp.firstCall.args, [
+        srcFile,
+        destDir,
+        {
+          force: specifiedOptions.overwrite,
+          as: specifiedOptions.as,
+        },
+      ]);
+    });
+
+    test("it throws when the first argument passed in is not a `Dir` instance", async () => {
+      await assert.rejects(
+        () =>
+          srcFile.copyTo(
+            // eslint-disable-next-line jsdoc/reject-any-type
+            /** @type {any} */ ("not a file or directory instance"),
+          ),
+        {
+          message:
+            "Expected first argument of File.copyTo to be a `Dir` instance",
+        },
+      );
+    });
+
+    test("it throws when the destination directory does not exist", async () => {
+      mockDirExists(destDir, false);
+
+      await assert.rejects(async () => srcFile.copyTo(destDir), {
+        message: `Directory "dest-dir" must exist before directory or files can be copied into it`,
+      });
+    });
+
+    test("it throws when the source file does not exist", async () => {
+      mockFileExists(srcFile, false);
+
+      await assert.rejects(async () => srcFile.copyTo(destDir), {
+        message: `File "src-file.md" must exist before it can be copied`,
+      });
+    });
+
+    test("it throws when a file already exists at the destination directory", async () => {
+      mockFileExists(destDir.file(srcFile.name), true);
+
+      await assert.rejects(
+        async () => srcFile.copyTo(destDir, { overwrite: false }),
+        {
+          message: `A file or directory already exists as "src-file.md" at "dest-dir"`,
+        },
+      );
     });
   });
 });

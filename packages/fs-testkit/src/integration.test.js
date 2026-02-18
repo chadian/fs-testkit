@@ -281,59 +281,60 @@ describe("Dirs", () => {
     ]);
   });
 
-  test("#copyTo (contents only)", async () => {
-    const sandbox = await createSandbox();
+  describe("#copyTo", () => {
+    test("it can copy contents only to the destination directory", async () => {
+      const sandbox = await createSandbox();
 
-    const dirA = sandbox.root.dir("dirA");
-    await dirA.create();
-    await dirA.file("README.md").create(``);
-    const dirB = sandbox.root.dir("dirB");
-    await dirB.create();
-    assert.strictEqual(
-      await sandbox.root.treeString(),
-      `
+      const dirA = sandbox.root.dir("dirA");
+      await dirA.create();
+      await dirA.file("README.md").create(``);
+      const dirB = sandbox.root.dir("dirB");
+      await dirB.create();
+      assert.strictEqual(
+        await sandbox.root.treeString(),
+        `
 .
 ├── dirA
 │   └── README.md
 └── dirB
 `.trim(),
-    );
+      );
 
-    await dirA.copyTo(dirB, { contentsOnly: true });
-    assert.strictEqual(
-      await sandbox.root.treeString(),
-      `
+      await dirA.copyTo(dirB, { contentsOnly: true });
+      assert.strictEqual(
+        await sandbox.root.treeString(),
+        `
 .
 ├── dirA
 │   └── README.md
 └── dirB
     └── README.md
 `.trim(),
-    );
-  });
+      );
+    });
 
-  test("#copyTo (including self)", async () => {
-    const sandbox = await createSandbox();
+    test("it can copy the directory itself to the destination directory", async () => {
+      const sandbox = await createSandbox();
 
-    const dirA = sandbox.root.dir("dirA");
-    await dirA.create();
-    await dirA.file("README.md").create(``);
-    const dirB = sandbox.root.dir("dirB");
-    await dirB.create();
-    assert.strictEqual(
-      await sandbox.root.treeString(),
-      `
+      const dirA = sandbox.root.dir("dirA");
+      await dirA.create();
+      await dirA.file("README.md").create(``);
+      const dirB = sandbox.root.dir("dirB");
+      await dirB.create();
+      assert.strictEqual(
+        await sandbox.root.treeString(),
+        `
 .
 ├── dirA
 │   └── README.md
 └── dirB
 `.trim(),
-    );
+      );
 
-    await dirA.copyTo(dirB, { contentsOnly: false });
-    assert.strictEqual(
-      await sandbox.root.treeString(),
-      `
+      await dirA.copyTo(dirB, { contentsOnly: false });
+      assert.strictEqual(
+        await sandbox.root.treeString(),
+        `
 .
 ├── dirA
 │   └── README.md
@@ -341,31 +342,31 @@ describe("Dirs", () => {
     └── dirA
         └── README.md
 `.trim(),
-    );
-  });
+      );
+    });
 
-  test("#copyTo (as)", async () => {
-    const sandbox = await createSandbox();
+    test("it can copy the directory itself as a new name to the directory destination", async () => {
+      const sandbox = await createSandbox();
 
-    const dirA = sandbox.root.dir("dirA");
-    await dirA.create();
-    await dirA.file("README.md").create(``);
-    const dirB = sandbox.root.dir("dirB");
-    await dirB.create();
-    assert.strictEqual(
-      await sandbox.root.treeString(),
-      `
+      const dirA = sandbox.root.dir("dirA");
+      await dirA.create();
+      await dirA.file("README.md").create(``);
+      const dirB = sandbox.root.dir("dirB");
+      await dirB.create();
+      assert.strictEqual(
+        await sandbox.root.treeString(),
+        `
 .
 ├── dirA
 │   └── README.md
 └── dirB
 `.trim(),
-    );
+      );
 
-    await dirA.copyTo(dirB, { contentsOnly: false, as: "renamed-dir" });
-    assert.strictEqual(
-      await sandbox.root.treeString(),
-      `
+      await dirA.copyTo(dirB, { contentsOnly: false, as: "renamed-dir" });
+      assert.strictEqual(
+        await sandbox.root.treeString(),
+        `
 .
 ├── dirA
 │   └── README.md
@@ -373,7 +374,8 @@ describe("Dirs", () => {
     └── renamed-dir
         └── README.md
 `.trim(),
-    );
+      );
+    });
   });
 });
 
@@ -591,6 +593,89 @@ Index: parent/child/hello-world.json
         path: "parent/child/hello-world.json",
         type: "modify",
       });
+    });
+  });
+
+  describe("#copyTo", () => {
+    test("it can copy a file", async () => {
+      const sandbox = await createSandbox();
+
+      await sandbox.scaffold({
+        src: {
+          ["README.md"]: `# README`,
+        },
+        dest: {},
+      });
+
+      assert.strictEqual(
+        await sandbox.root.treeString(),
+        `
+.
+├── dest
+└── src
+    └── README.md
+`.trim(),
+      );
+
+      await sandbox.at("src/README.md").copyTo(sandbox.dir("dest"));
+      assert.strictEqual(
+        await sandbox.root.treeString(),
+        `
+.
+├── dest
+│   └── README.md
+└── src
+    └── README.md
+`.trim(),
+      );
+
+      assert.deepEqual(
+        await sandbox.at("src/README.md").contents(),
+        await sandbox.at("dest/README.md").contents(),
+        "copied contents are the same",
+      );
+    });
+
+    test("it can copy a file as a new name (renamed) to the directory destination", async () => {
+      const sandbox = await createSandbox();
+
+      await sandbox.scaffold({
+        src: {
+          ["README.md"]: `# README`,
+        },
+        dest: {},
+      });
+
+      assert.strictEqual(
+        await sandbox.root.treeString(),
+        `
+.
+├── dest
+└── src
+    └── README.md
+`.trim(),
+      );
+
+      await sandbox
+        .at("src/README.md")
+        .copyTo(sandbox.dir("dest"), { as: "COPIED_README.md" });
+
+      assert.strictEqual(
+        await sandbox.root.treeString(),
+        `
+.
+├── dest
+│   └── COPIED_README.md
+└── src
+    └── README.md
+`.trim(),
+      );
+
+      assert.deepEqual(
+        await sandbox.at("src/README.md").contents(),
+        await sandbox.at("dest/COPIED_README.md").contents(),
+        "copied contents are the same",
+      );
     });
   });
 });
