@@ -300,6 +300,15 @@ export class Sandbox {
   }
 
   /**
+   * @param {Parameters<Dir['copyFromExternal']>[0]} srcAbsolutePath
+   * @param {Parameters<Dir['copyFromExternal']>[1]} options
+   * @returns {ReturnType<Dir['copyFromExternal']>}
+   */
+  async copyFromExternal(srcAbsolutePath, options) {
+    return this.#root.copyFromExternal(srcAbsolutePath, options);
+  }
+
+  /**
    * Delete the sandbox root and its contents
    * @returns {Promise<void>}
    */
