@@ -1,7 +1,6 @@
 import { createSandbox } from "./index.js";
 import { describe, test } from "node:test";
 import assert from "node:assert";
-import * as fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { Dir } from "./dir.js";
 import { File } from "./file.js";
@@ -26,7 +25,9 @@ describe("Initialization", () => {
 
   test("#createSandbox creates the its own sandbox directory at #rootPath", async () => {
     const sandbox = await createSandbox();
-    await assert.doesNotReject(() => fs.access(resolve(sandbox.rootPath)));
+    await assert.doesNotReject(() =>
+      sandbox.options.fs.access(resolve(sandbox.rootPath)),
+    );
   });
 });
 
@@ -139,7 +140,7 @@ describe("Dirs", () => {
     await directory.create();
 
     await assert.doesNotReject(() =>
-      fs.access(resolve(sandbox.rootPath, "hello-world")),
+      sandbox.options.fs.access(resolve(sandbox.rootPath, "hello-world")),
     );
   });
 
@@ -148,7 +149,7 @@ describe("Dirs", () => {
     await sandbox.dir("parent").dir("child").create();
 
     await assert.doesNotReject(() =>
-      fs.access(resolve(sandbox.rootPath, "parent", "child")),
+      sandbox.options.fs.access(resolve(sandbox.rootPath, "parent", "child")),
     );
   });
 
@@ -292,7 +293,7 @@ describe("Files", async () => {
       .create("This is the contents of the file!");
 
     const fileContents = (
-      await fs.readFile(
+      await sandbox.options.fs.readFile(
         resolve(sandbox.rootPath, "parent", "child", "hello-world"),
       )
     ).toString();
@@ -306,7 +307,9 @@ describe("Files", async () => {
       await sandbox.file("some.json").create(sampleJsonString.ugly);
 
       const result = (
-        await fs.readFile(resolve(sandbox.rootPath, "some.json"))
+        await sandbox.options.fs.readFile(
+          resolve(sandbox.rootPath, "some.json"),
+        )
       ).toString();
       assert.notStrictEqual(result.trim(), sampleJsonString.pretty.trim());
       assert.strictEqual(result.trim(), sampleJsonString.ugly.trim());
@@ -316,7 +319,9 @@ describe("Files", async () => {
       const sandbox = await createSandbox({ prettier: true });
       await sandbox.file("some.json").create(sampleJsonString.ugly);
       const result = (
-        await fs.readFile(resolve(sandbox.rootPath, "some.json"))
+        await sandbox.options.fs.readFile(
+          resolve(sandbox.rootPath, "some.json"),
+        )
       ).toString();
       assert.strict(result.trim(), sampleJsonString.pretty.trim());
     });
@@ -328,7 +333,9 @@ describe("Files", async () => {
         .create(sampleJsonString.ugly, { prettier: false });
 
       const result = (
-        await fs.readFile(resolve(sandbox.rootPath, "some.json"))
+        await sandbox.options.fs.readFile(
+          resolve(sandbox.rootPath, "some.json"),
+        )
       ).toString();
 
       assert.notStrictEqual(result, sampleJsonString.pretty);
@@ -505,33 +512,45 @@ describe("Snapshots", async () => {
     await sandbox.snapshot.create("with-another");
 
     await assert.doesNotReject(() =>
-      fs.access(resolve(sandbox.rootPath, "hello-world", "meow.md")),
+      sandbox.options.fs.access(
+        resolve(sandbox.rootPath, "hello-world", "meow.md"),
+      ),
     );
 
     await assert.doesNotReject(() =>
-      fs.access(resolve(sandbox.rootPath, "hello-world", "another.md")),
+      sandbox.options.fs.access(
+        resolve(sandbox.rootPath, "hello-world", "another.md"),
+      ),
     );
 
     await sandbox.snapshot.restore("initial");
 
     await assert.doesNotReject(() =>
-      fs.access(resolve(sandbox.rootPath, "hello-world", "meow.md")),
+      sandbox.options.fs.access(
+        resolve(sandbox.rootPath, "hello-world", "meow.md"),
+      ),
     );
 
     // REJECTS! `another.md` does not exist on snapshot @ "initial"
     await assert.rejects(() =>
-      fs.access(resolve(sandbox.rootPath, "hello-world", "another.md")),
+      sandbox.options.fs.access(
+        resolve(sandbox.rootPath, "hello-world", "another.md"),
+      ),
     );
 
     await sandbox.snapshot.restore("with-another");
 
     await assert.doesNotReject(() =>
-      fs.access(resolve(sandbox.rootPath, "hello-world", "meow.md")),
+      sandbox.options.fs.access(
+        resolve(sandbox.rootPath, "hello-world", "meow.md"),
+      ),
     );
 
     // Does not reject! `another.md` is restored from snapshot @ "with-another"
     await assert.doesNotReject(() =>
-      fs.access(resolve(sandbox.rootPath, "hello-world", "another.md")),
+      sandbox.options.fs.access(
+        resolve(sandbox.rootPath, "hello-world", "another.md"),
+      ),
     );
   });
 
@@ -595,14 +614,16 @@ A paragraph of marakdown content, cool!
       ...expectedFiles,
     })) {
       await assert.doesNotReject(() =>
-        fs.access(resolve(sandbox.rootPath, fileOrFolder)),
+        sandbox.options.fs.access(resolve(sandbox.rootPath, fileOrFolder)),
       );
     }
 
     // assert all expected files are actual files
     for (const file of Object.values(expectedFiles)) {
       assert.strictEqual(
-        (await fs.stat(resolve(sandbox.rootPath, file))).isFile(),
+        (
+          await sandbox.options.fs.stat(resolve(sandbox.rootPath, file))
+        ).isFile(),
         true,
       );
     }
@@ -610,20 +631,26 @@ A paragraph of marakdown content, cool!
     // assert all expected dirs are actual dirs
     for (const file of Object.values(expectedDirs)) {
       assert.strictEqual(
-        (await fs.stat(resolve(sandbox.rootPath, file))).isDirectory(),
+        (
+          await sandbox.options.fs.stat(resolve(sandbox.rootPath, file))
+        ).isDirectory(),
         true,
       );
     }
 
     // check buffer file
     const fileFromBuffer = (
-      await fs.readFile(resolve(sandbox.rootPath, expectedFiles.buffer))
+      await sandbox.options.fs.readFile(
+        resolve(sandbox.rootPath, expectedFiles.buffer),
+      )
     ).toString();
     assert.strictEqual(fileFromBuffer, `hello buffer text`);
 
     // assert `File#create` args by checking `prettier` application
     const uglyJsonFileContents = (
-      await fs.readFile(resolve(sandbox.rootPath, expectedFiles.nestedUglyJson))
+      await sandbox.options.fs.readFile(
+        resolve(sandbox.rootPath, expectedFiles.nestedUglyJson),
+      )
     ).toString();
     assert.strictEqual(uglyJsonFileContents, sampleJsonString.ugly);
 
@@ -637,14 +664,14 @@ A paragraph of marakdown content, cool!
     );
 
     const prettyJsonByArgsContents = (
-      await fs.readFile(
+      await sandbox.options.fs.readFile(
         resolve(sandbox.rootPath, expectedFiles.nestedPrettyJsonArgs),
       )
     ).toString();
     assert.strictEqual(prettyJsonByArgsContents, prettyJson);
 
     const prettyJsonByDefaultContents = (
-      await fs.readFile(
+      await sandbox.options.fs.readFile(
         resolve(sandbox.rootPath, expectedFiles.nestedPrettyJsonDefault),
       )
     ).toString();
