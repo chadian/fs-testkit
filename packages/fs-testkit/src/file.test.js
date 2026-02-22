@@ -1,12 +1,15 @@
 import { beforeEach, describe, test, afterEach } from "node:test";
 import { File } from "./file.js";
-import { Dir } from "./dir.js";
 import assert from "node:assert";
 import * as sinon from "sinon";
 import { resolve } from "node:path";
 import { mockSandboxFsOps } from "./test-utils/fs-ops.js";
 import { Git } from "./git.js";
 import { createMockedSandbox } from "./test-utils/sandbox.js";
+
+/**
+ * @typedef {import('./dir.js').Dir} Dir
+ */
 
 describe("File", () => {
   /** @type { import("sinon").SinonSandbox } */
@@ -379,7 +382,7 @@ describe("File", () => {
     /** @type {File} */
     let file;
 
-    /** @type {import("./file.js").Dir} */
+    /** @type {Dir} */
     let subDir;
 
     beforeEach(() => {

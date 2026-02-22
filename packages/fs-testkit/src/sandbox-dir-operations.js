@@ -1,8 +1,8 @@
-import { Dir } from "./dir.js";
-import { File } from "./file.js";
 import path from "path";
 
 /**
+ * @typedef {import('./dir.js').Dir} Dir
+ * @typedef {import('./file.js').File} File
  * @typedef {import('./git.js').Git} Git
  * @typedef {import('./sandbox.js').Sandbox} Sandbox
  * @typedef {import('node:fs/promises')} Fs

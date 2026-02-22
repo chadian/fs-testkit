@@ -1,14 +1,6 @@
 import { File } from "./file.js";
 import { buildPath } from "./utils/build-path.js";
-import {
-  dirname,
-  isAbsolute,
-  parse,
-  resolve,
-  sep,
-  join,
-  basename,
-} from "node:path";
+import { isAbsolute, parse, resolve, sep, join, basename } from "node:path";
 import { isScaffoldDir, leaves } from "./utils/scaffold.js";
 import { tree, treeString } from "./utils/tree.js";
 import { contains } from "./utils/path.js";
