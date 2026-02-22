@@ -504,7 +504,7 @@ export class Dir {
 
     if (typeof srcAbsolutePath !== "string") {
       throw new Error(
-        `The first argument of Dir.copyFromExternal must be a string, got "${typeof srcAbsolutePath}"`,
+        `Expected the first argument of Dir.copyFromExternal to be a string, got "${typeof srcAbsolutePath}"`,
       );
     }
 

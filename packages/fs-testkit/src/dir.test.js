@@ -1,10 +1,11 @@
+import * as fs from "fs/promises";
 import { Dir } from "./dir.js";
 import { File } from "./file.js";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import assert from "node:assert";
 import * as sinon from "sinon";
 import { Git } from "./git.js";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { mockSandboxFsOps } from "./test-utils/fs-ops.js";
 import { createMockedSandbox } from "./test-utils/sandbox.js";
 
@@ -992,6 +993,170 @@ describe("Dir", () => {
             }),
           {
             message: `A file or directory already exists as "src-dir" at "dest-dir"`,
+          },
+        );
+      });
+    });
+  });
+
+  describe("#copyFromExternal", () => {
+    const srcAbsolutePath = "/some/external/absolute/path/";
+
+    // eslint-disable-next-line jsdoc/reject-any-type
+    /** @type { Record<keyof import('fs/promises'), any>} */
+    let fsModuleMocks;
+
+    /** @type { Dir } */
+    let destDir;
+
+    /** @type {ReturnType<mockSandboxFsOps>['dirOpsStubs']} */
+    let dirOpsStubs;
+
+    const defaultFsModuleCpOptions = Object.freeze({
+      errorOnExist: true,
+      force: false,
+      recursive: true,
+    });
+
+    /**
+     * using all sinon matchers for `withArgs` to workaround this issue:
+       https://github.com/sinonjs/sinon/issues/1572
+     * @param {Dir} dir 
+     * @param {boolean} exists 
+     */
+    const mockDirExists = (dir, exists) => {
+      dirOpsStubs.exists
+        .withArgs(sinon.match.has("path", dir.path))
+        .resolves(exists);
+    };
+
+    beforeEach(async () => {
+      fsModuleMocks = {
+        ...fs,
+
+        // `Dir.copyFromExternal` only uses stat for the `isDirectory` check
+        stat: sinonSandbox.stub().resolves({ isDirectory: () => true }),
+        access: sinonSandbox.stub(),
+        cp: sinonSandbox.stub().resolves(),
+      };
+
+      const { sandbox: sb, mockTempRootPath } = createMockedSandbox(
+        sinonSandbox,
+        {
+          fs: fsModuleMocks,
+        },
+      );
+
+      sandbox = sb;
+
+      // existing root directory should not already exist
+      fsModuleMocks.access.withArgs(sinon.match(mockTempRootPath)).rejects();
+      // source absolute path being copied should exist
+      fsModuleMocks.access.withArgs(sinon.match(srcAbsolutePath)).resolves();
+
+      destDir = sandbox.root;
+      const mockFsOps = mockSandboxFsOps(sandbox);
+      dirOpsStubs = mockFsOps.dirOpsStubs;
+      mockDirExists(destDir, true);
+      await sandbox.setup();
+    });
+
+    test("it can copy a directory", async () => {
+      await sandbox.root.copyFromExternal(srcAbsolutePath);
+
+      assert.strictEqual(fsModuleMocks.cp.calledOnce, true);
+      assert.deepEqual(fsModuleMocks.cp.firstCall.args, [
+        srcAbsolutePath,
+        destDir.absolutePath,
+        defaultFsModuleCpOptions,
+      ]);
+    });
+
+    test("specified options are passed through", async () => {
+      const specifiedOptions = {
+        overwrite: true,
+        recursive: false,
+        contentsOnly: false,
+        as: "renamed-dir",
+      };
+
+      await sandbox.root.copyFromExternal(srcAbsolutePath, specifiedOptions);
+      assert.strictEqual(fsModuleMocks.cp.calledOnce, true);
+      assert.deepEqual(fsModuleMocks.cp.firstCall.args, [
+        srcAbsolutePath,
+        join(destDir.absolutePath, specifiedOptions.as),
+        {
+          errorOnExist: defaultFsModuleCpOptions.errorOnExist,
+          force: specifiedOptions.overwrite,
+          recursive: specifiedOptions.recursive,
+        },
+      ]);
+    });
+
+    test("it throws when the first argument passed in is not a string", async () => {
+      await assert.rejects(
+        () =>
+          sandbox.root.copyFromExternal(
+            // eslint-disable-next-line jsdoc/reject-any-type
+            /** @type {any} */ ({}),
+          ),
+        {
+          message: `Expected the first argument of Dir.copyFromExternal to be a string, got "object"`,
+        },
+      );
+    });
+
+    test("it throws when the source directory does not exist", async () => {
+      fsModuleMocks.access.withArgs(sinon.match(srcAbsolutePath)).rejects();
+
+      await assert.rejects(
+        async () => sandbox.root.copyFromExternal(srcAbsolutePath),
+        {
+          message: `Unable to access absolute path to copy: "/some/external/absolute/path/"`,
+        },
+      );
+    });
+
+    describe("option: overwite", async () => {
+      test("it defaults to false", async () => {
+        await sandbox.root.copyFromExternal(srcAbsolutePath);
+        assert.strictEqual(fsModuleMocks.cp.calledOnce, true);
+        assert.strictEqual(fsModuleMocks.cp.firstCall.args[2]?.force, false);
+        assert.strictEqual(
+          fsModuleMocks.cp.firstCall.args[2]?.errorOnExist,
+          true,
+        );
+      });
+
+      test("it accepts a passed in true value", async () => {
+        await sandbox.root.copyFromExternal(srcAbsolutePath, {
+          overwrite: true,
+        });
+        assert.strictEqual(fsModuleMocks.cp.calledOnce, true);
+        assert.strictEqual(fsModuleMocks.cp.firstCall.args[2]?.force, true);
+        assert.strictEqual(
+          fsModuleMocks.cp.firstCall.args[2]?.errorOnExist,
+          true,
+        );
+      });
+
+      test("it throws when overwrite: false and contentsOnly: false, and the file or directory already exists at the location being copied to", async () => {
+        sinonSandbox
+          .stub(destDir, "dir")
+          .withArgs(basename(srcAbsolutePath))
+          .returns(
+            // eslint-disable-next-line jsdoc/reject-any-type
+            /** @type { any } */ ({ exists: () => Promise.resolve(true) }),
+          );
+
+        await assert.rejects(
+          async () =>
+            await sandbox.root.copyFromExternal(srcAbsolutePath, {
+              contentsOnly: false,
+              overwrite: false,
+            }),
+          {
+            message: `A file or directory already exists as "path" at "{sandbox root}"`,
           },
         );
       });
