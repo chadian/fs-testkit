@@ -377,6 +377,78 @@ describe("Dirs", () => {
       );
     });
   });
+
+  describe("#copyFromExternal", () => {
+    test("it can copy an external directory", async () => {
+      const readmeContents = `# README`;
+      const sandboxA = await createSandbox();
+      await sandboxA.scaffold({ ["README.md"]: readmeContents });
+
+      const sandboxB = await createSandbox();
+      await sandboxB.root.copyFromExternal(sandboxA.root.absolutePath);
+      assert.strictEqual(
+        await sandboxB.root.treeString(),
+        `
+.
+└── README.md`.trim(),
+      );
+      assert.strictEqual(
+        (await sandboxB.root.at(`README.md`).contents()).toString(),
+        readmeContents,
+      );
+    });
+
+    test("it can copy an external directory itself (not contents)", async () => {
+      const readmeContents = `# README`;
+      const sandboxA = await createSandbox();
+      await sandboxA.scaffold({ dir: { ["README.md"]: readmeContents } });
+
+      const sandboxB = await createSandbox();
+      await sandboxB.root.copyFromExternal(
+        sandboxA.root.dir("dir").absolutePath,
+        {
+          contentsOnly: false,
+        },
+      );
+      assert.strictEqual(
+        await sandboxB.root.treeString(),
+        `
+.
+└── dir
+    └── README.md`.trim(),
+      );
+      assert.strictEqual(
+        (await sandboxB.root.at(`dir/README.md`).contents()).toString(),
+        readmeContents,
+      );
+    });
+
+    test("it can copy an external directory itself (not contents with rename `as`)", async () => {
+      const readmeContents = `# README`;
+      const sandboxA = await createSandbox();
+      await sandboxA.scaffold({ dir: { ["README.md"]: readmeContents } });
+
+      const sandboxB = await createSandbox();
+      await sandboxB.root.copyFromExternal(
+        sandboxA.root.dir("dir").absolutePath,
+        {
+          contentsOnly: false,
+          as: "renamed",
+        },
+      );
+      assert.strictEqual(
+        await sandboxB.root.treeString(),
+        `
+.
+└── renamed
+    └── README.md`.trim(),
+      );
+      assert.strictEqual(
+        (await sandboxB.root.at(`renamed/README.md`).contents()).toString(),
+        readmeContents,
+      );
+    });
+  });
 });
 
 describe("Files", async () => {
