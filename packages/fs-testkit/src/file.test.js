@@ -3,7 +3,6 @@ import { File } from "./file.js";
 import assert from "node:assert";
 import * as sinon from "sinon";
 import { resolve } from "node:path";
-import { mockSandboxFsOps } from "./test-utils/fs-ops.js";
 import { Git } from "./git.js";
 import { createMockedSandbox } from "./test-utils/sandbox.js";
 
@@ -19,13 +18,26 @@ describe("File", () => {
   let sandbox;
 
   const mockTempRootPath = "/mock-tmp/random-uuid";
-  /**
-   * @type {import("sinon").SinonStub}
-   */
+  /** @type {import("sinon").SinonStub} */
+
+  /** @type {ReturnType<typeof createMockedSandbox>['fileOpsStubs']} */
+  let fileOpsStubs;
+
+  /** @type {ReturnType<typeof createMockedSandbox>['dirOpsStubs']} */
+  let dirOpsStubs;
 
   beforeEach(async () => {
     sinonSandbox = sinon.createSandbox();
-    sandbox = createMockedSandbox(sinonSandbox).sandbox;
+    const {
+      sandbox: s,
+      fileOpsStubs: fOpsStubs,
+      dirOpsStubs: dOpsStubs,
+    } = createMockedSandbox(sinonSandbox);
+
+    sandbox = s;
+    fileOpsStubs = fOpsStubs;
+    dirOpsStubs = dOpsStubs;
+
     await sandbox.setup();
   });
 
@@ -130,7 +142,6 @@ describe("File", () => {
   });
 
   test("#read", async () => {
-    const { fileOpsStubs } = mockSandboxFsOps(sandbox);
     fileOpsStubs.read.resolves("mock resolved from #read");
 
     const file = new File({
@@ -147,23 +158,10 @@ describe("File", () => {
   });
 
   describe("#create", () => {
-    /**
-     * @type {Record<string, import("sinon").SinonStub>}
-     */
-    let dirOpsStubs;
-    /**
-     * @type {Record<string, import("sinon").SinonStub>}
-     */
-    let fileOpsStubs;
-
     /** @type { File } */
     let file;
 
     beforeEach(() => {
-      const opsStubs = mockSandboxFsOps(sandbox);
-      dirOpsStubs = opsStubs.dirOpsStubs;
-      fileOpsStubs = opsStubs.fileOpsStubs;
-
       dirOpsStubs.mkdir.callsFake(async (dir) => dir.absolutePath);
 
       file = new File({
@@ -272,7 +270,7 @@ describe("File", () => {
     describe("when the file's parent directory doesn't exist", () => {
       beforeEach(() => {
         dirOpsStubs.exists.callsFake(async () => false);
-        dirOpsStubs.mkdir.callsFake(async () => {});
+        dirOpsStubs.mkdir.callsFake(async () => Promise.resolve(""));
       });
 
       test("it creates the file's parent directory before creating the file", async () => {
@@ -312,26 +310,42 @@ describe("File", () => {
       test("prettier formatting is disabled by default", async () => {
         await file.create(uglyJson);
         const writtenString = fileOpsStubs.write.firstCall.args[1];
-        assert.strictEqual(writtenString.trim(), uglyJson);
+        assert.strictEqual(
+          /** @type {string} */ (writtenString).trim(),
+          uglyJson,
+        );
       });
 
       test("prettier formatting is enabled by option { prettier: true }", async () => {
         await file.create(uglyJson, { prettier: true });
         const writtenString = fileOpsStubs.write.firstCall.args[1];
-        assert.strictEqual(writtenString.trim(), prettyJson);
+        assert.strictEqual(
+          /** @type {string} */ (writtenString).trim(),
+          prettyJson,
+        );
       });
 
       test("prettier formatting is disabled by option { prettier: false }", async () => {
         await file.create(uglyJson, { prettier: false });
         const writtenString = fileOpsStubs.write.firstCall.args[1];
-        assert.strictEqual(writtenString.trim(), uglyJson);
+        assert.strictEqual(
+          /** @type {string} */ (writtenString).trim(),
+          uglyJson,
+        );
       });
 
       test("prettier formatting uses parent sandbox prettier option", async () => {
-        sandbox = createMockedSandbox(sinonSandbox, { prettier: true }).sandbox;
+        const {
+          sandbox: s,
+          fileOpsStubs: fOpsStubs,
+          dirOpsStubs: dOpsStubs,
+        } = createMockedSandbox(sinonSandbox, { prettier: true });
+
+        sandbox = s;
+        dirOpsStubs = dOpsStubs;
+        fileOpsStubs = fOpsStubs;
         await sandbox.setup();
 
-        const { fileOpsStubs, dirOpsStubs } = mockSandboxFsOps(sandbox);
         dirOpsStubs.mkdir.callsFake(async (dir) => dir.absolutePath);
 
         const file = new File({
@@ -354,13 +368,15 @@ describe("File", () => {
 
         await file.create(uglyJson, { prettier: true });
         const writtenString = fileOpsStubs.write.firstCall.args[1];
-        assert.strictEqual(writtenString.trim(), uglyJson);
+        assert.strictEqual(
+          /** @type {string} */ (writtenString).trim(),
+          uglyJson,
+        );
       });
     });
   });
 
   test("#rename", async () => {
-    const { fileOpsStubs } = mockSandboxFsOps(sandbox);
     fileOpsStubs.rename.resolves();
 
     const file = new File({
@@ -396,7 +412,6 @@ describe("File", () => {
     });
 
     test("it moves a file under a directory", async () => {
-      const { fileOpsStubs, dirOpsStubs } = mockSandboxFsOps(sandbox);
       fileOpsStubs.move.resolves();
 
       // using all sinon matchers for `withArgs` to workaround this issue:
@@ -419,8 +434,6 @@ describe("File", () => {
     });
 
     test("it throws when the file to be moved does not exist", async () => {
-      const { fileOpsStubs } = mockSandboxFsOps(sandbox);
-
       const subDir = sandbox.root.dir("sub-dir");
       fileOpsStubs.exists.withArgs(sinon.match.in([file])).resolves(false);
 
@@ -430,8 +443,6 @@ describe("File", () => {
     });
 
     test("it throws when the directory the file is to be moved to does not exist", async () => {
-      const { fileOpsStubs, dirOpsStubs } = mockSandboxFsOps(sandbox);
-
       fileOpsStubs.exists.withArgs(sinon.match.in([file])).resolves(true);
       dirOpsStubs.exists.withArgs(sinon.match.in([subDir])).resolves(false);
 
@@ -441,8 +452,6 @@ describe("File", () => {
     });
 
     test("it throws when the directory the file is to be moved to already has a file or directory under the same name", async () => {
-      const { fileOpsStubs, dirOpsStubs } = mockSandboxFsOps(sandbox);
-
       // using all sinon matchers for `withArgs` to workaround this issue:
       // https://github.com/sinonjs/sinon/issues/1572
       fileOpsStubs.exists
@@ -458,7 +467,6 @@ describe("File", () => {
   });
 
   test("#access", async () => {
-    const { fileOpsStubs } = mockSandboxFsOps(sandbox);
     fileOpsStubs.access.resolves();
 
     const file = new File({
@@ -474,7 +482,6 @@ describe("File", () => {
   });
 
   test("#exists", async () => {
-    const { fileOpsStubs } = mockSandboxFsOps(sandbox);
     const file = new File({
       sandbox,
       name: "hello-world",
@@ -489,7 +496,6 @@ describe("File", () => {
   });
 
   test("#delete", async () => {
-    const { fileOpsStubs } = mockSandboxFsOps(sandbox);
     const file = new File({
       sandbox,
       name: "hello-world",
@@ -531,7 +537,6 @@ describe("File", () => {
   });
 
   test("#size", async () => {
-    const { fileOpsStubs } = mockSandboxFsOps(sandbox);
     const mockStatSize = 123456;
     fileOpsStubs.stat.returns(
       // eslint-disable-next-line jsdoc/reject-any-type
@@ -765,12 +770,6 @@ describe("File", () => {
     /** @type { Dir } */
     let destDir;
 
-    /** @type {ReturnType<mockSandboxFsOps>['dirOpsStubs']} */
-    let dirOpsStubs;
-
-    /** @type {ReturnType<mockSandboxFsOps>['fileOpsStubs']} */
-    let fileOpsStubs;
-
     /**
      * using all sinon matchers for `withArgs` to workaround this issue:
        https://github.com/sinonjs/sinon/issues/1572
@@ -803,10 +802,6 @@ describe("File", () => {
     beforeEach(() => {
       srcFile = sandbox.file("src-file.md");
       destDir = sandbox.dir("dest-dir");
-
-      const mockFsOps = mockSandboxFsOps(sandbox);
-      dirOpsStubs = mockFsOps.dirOpsStubs;
-      fileOpsStubs = mockFsOps.fileOpsStubs;
 
       dirOpsStubs.cp.resolves();
       mockFileExists(srcFile, true);

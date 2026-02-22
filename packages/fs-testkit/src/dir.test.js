@@ -6,7 +6,6 @@ import assert from "node:assert";
 import * as sinon from "sinon";
 import { Git } from "./git.js";
 import { basename, join, resolve } from "node:path";
-import { mockSandboxFsOps } from "./test-utils/fs-ops.js";
 import { createMockedSandbox } from "./test-utils/sandbox.js";
 
 describe("Dir", () => {
@@ -16,11 +15,26 @@ describe("Dir", () => {
   /** @type {import('./sandbox.js').Sandbox} */
   let sandbox;
 
+  /** @type {ReturnType<typeof createMockedSandbox>['dirOpsStubs']} */
+  let dirOpsStubs;
+
+  /** @type {ReturnType<typeof createMockedSandbox>['fileOpsStubs']} */
+  let fileOpsStubs;
+
   const mockTempRootPath = "/mock-tmp/random-uuid";
 
   beforeEach(async () => {
     sinonSandbox = sinon.createSandbox();
-    sandbox = createMockedSandbox(sinonSandbox).sandbox;
+    const {
+      sandbox: s,
+      dirOpsStubs: dOpsStubs,
+      fileOpsStubs: fOpsStubs,
+    } = createMockedSandbox(sinonSandbox);
+
+    sandbox = s;
+    dirOpsStubs = dOpsStubs;
+    fileOpsStubs = fOpsStubs;
+
     await sandbox.setup();
   });
 
@@ -181,14 +195,7 @@ describe("Dir", () => {
   });
 
   describe("#create", () => {
-    /**
-     * @type {ReturnType<typeof mockSandboxFsOps>['dirOpsStubs']}
-     */
-    let dirOpsStubs;
-
     beforeEach(() => {
-      const mockFsOps = mockSandboxFsOps(sandbox);
-      dirOpsStubs = mockFsOps.dirOpsStubs;
       dirOpsStubs.mkdir.callsFake(async (dir) => dir.absolutePath);
     });
 
@@ -249,24 +256,22 @@ describe("Dir", () => {
   });
 
   test("#contents", async () => {
-    const mockFsOps = mockSandboxFsOps(sandbox);
-
     const mockDirEnts = [
       { name: "file-hello-world" },
       { name: "folder-hello-world" },
     ];
 
-    mockFsOps.dirOpsStubs.readdir.returns(
+    dirOpsStubs.readdir.returns(
       /** @type {Promise<import('node:fs').Dirent[]>} */ (
         Promise.resolve(mockDirEnts)
       ),
     );
 
-    mockFsOps.dirOpsStubs.exists
+    dirOpsStubs.exists
       .withArgs(sinon.match({ name: "file-hello-world" }))
       .returns(Promise.resolve(false));
 
-    mockFsOps.dirOpsStubs.exists
+    dirOpsStubs.exists
       .withArgs(sinon.match({ name: "folder-hello-world" }))
       .returns(Promise.resolve(true));
 
@@ -296,7 +301,6 @@ describe("Dir", () => {
     });
 
     test("it renames a directory", async () => {
-      const { dirOpsStubs } = mockSandboxFsOps(sandbox);
       dirOpsStubs.rename.resolves();
 
       const renamedDir = await dir.rename("renamed-dir");
@@ -309,7 +313,6 @@ describe("Dir", () => {
     });
 
     test("it throws when the name the directory is being renamed to is taken by another file or directory", async () => {
-      const { dirOpsStubs } = mockSandboxFsOps(sandbox);
       dirOpsStubs.exists
         .withArgs(sinon.match.has("path", dir.parent?.dir("renamed-dir").path))
         .resolves(true);
@@ -343,8 +346,6 @@ describe("Dir", () => {
     });
 
     test("it moves directory under another directory", async () => {
-      const { dirOpsStubs } = mockSandboxFsOps(sandbox);
-
       // using all sinon matchers for `withArgs` to workaround this issue:
       // https://github.com/sinonjs/sinon/issues/1572
       dirOpsStubs.exists
@@ -366,7 +367,6 @@ describe("Dir", () => {
     });
 
     test("it throws when a directory does not exist", async () => {
-      const { dirOpsStubs } = mockSandboxFsOps(sandbox);
       dirOpsStubs.exists.withArgs(sinon.match.in([dirToMove])).resolves(false);
 
       await assert.rejects(() => dirToMove.move(newDirParent), {
@@ -376,8 +376,6 @@ describe("Dir", () => {
     });
 
     test("it throws when a directory is attempted to be moved under a directory that does not exist", async () => {
-      const { dirOpsStubs } = mockSandboxFsOps(sandbox);
-
       dirOpsStubs.exists.withArgs(sinon.match.in([dirToMove])).resolves(true);
       dirOpsStubs.exists
         .withArgs(sinon.match.in([newDirParent]))
@@ -390,8 +388,6 @@ describe("Dir", () => {
     });
 
     test("it throws when a directory has the same name as a file or directory under the directory it is attempted to be moved under", async () => {
-      const { dirOpsStubs } = mockSandboxFsOps(sandbox);
-
       // using all sinon matchers for `withArgs` to workaround this issue:
       // https://github.com/sinonjs/sinon/issues/1572
       dirOpsStubs.exists
@@ -409,7 +405,6 @@ describe("Dir", () => {
     });
 
     test("it throws when a directory is attempted to be moved under a directory it contains", async () => {
-      const { dirOpsStubs } = mockSandboxFsOps(sandbox);
       dirOpsStubs.rename.resolves();
 
       const dir = new Dir({
@@ -437,8 +432,7 @@ describe("Dir", () => {
       parent: sandbox.root,
     });
 
-    const mockFsOps = mockSandboxFsOps(sandbox);
-    const existsStub = mockFsOps.dirOpsStubs.access
+    const existsStub = dirOpsStubs.access
       .withArgs(sinon.match({ path: "some-dir" }))
       .resolves();
 
@@ -454,23 +448,15 @@ describe("Dir", () => {
       parent: sandbox.root,
     });
 
-    const mockFsOps = mockSandboxFsOps(sandbox);
-    mockFsOps.dirOpsStubs.exists.resolves(true);
+    dirOpsStubs.exists.resolves(true);
     await dir.exists();
 
-    assert.strictEqual(mockFsOps.dirOpsStubs.exists.calledOnce, true);
-    assert.strictEqual(mockFsOps.dirOpsStubs.exists.firstCall.args[0], dir);
+    assert.strictEqual(dirOpsStubs.exists.calledOnce, true);
+    assert.strictEqual(dirOpsStubs.exists.firstCall.args[0], dir);
   });
 
   describe("#delete", () => {
-    /**
-     * @type {ReturnType<typeof mockSandboxFsOps>['dirOpsStubs']}
-     */
-    let dirOpsStubs;
-
     beforeEach(() => {
-      const mockFsOps = mockSandboxFsOps(sandbox);
-      dirOpsStubs = mockFsOps.dirOpsStubs;
       dirOpsStubs.rm.callsFake(async () => {});
     });
 
@@ -516,15 +502,9 @@ describe("Dir", () => {
   });
 
   describe("#scaffold", () => {
-    /**
-     * @type {ReturnType<typeof mockSandboxFsOps>}
-     */
-    let mockFsOps;
-
     beforeEach(() => {
-      mockFsOps = mockSandboxFsOps(sandbox);
-      mockFsOps.dirOpsStubs.rm.callsFake(async () => {});
-      mockFsOps.dirOpsStubs.mkdir.callsFake(async (dir) => dir.absolutePath);
+      dirOpsStubs.rm.callsFake(async () => {});
+      dirOpsStubs.mkdir.callsFake(async (dir) => dir.absolutePath);
     });
 
     test("it can scaffold out a structure of files and directories", async () => {
@@ -570,19 +550,19 @@ describe("Dir", () => {
       const numberOfEmptyDirectories = 2;
 
       assert.strictEqual(
-        mockFsOps.dirOpsStubs.mkdir.callCount,
+        dirOpsStubs.mkdir.callCount,
         numberOfRootFiles + numberOfNonRootFiles + numberOfEmptyDirectories,
         "each file and empty directory is considered a leaf and has a recursive mkdir called for it",
       );
 
       assert.strictEqual(
-        mockFsOps.fileOpsStubs.write.callCount,
+        fileOpsStubs.write.callCount,
         numberOfRootFiles + numberOfNonRootFiles,
         "each file is called with create",
       );
 
-      const mkdirStub = mockFsOps.dirOpsStubs.mkdir;
-      const writeCallStub = mockFsOps.fileOpsStubs.write;
+      const mkdirStub = dirOpsStubs.mkdir;
+      const writeCallStub = fileOpsStubs.write;
 
       const checkFsOpForPath = (
         /** @type {import("./test-utils/sandbox.js").SinonStub} */ fsOpStub,
@@ -871,9 +851,6 @@ describe("Dir", () => {
     /** @type { Dir } */
     let destDir;
 
-    /** @type {ReturnType<mockSandboxFsOps>['dirOpsStubs']} */
-    let dirOpsStubs;
-
     const defaultDirOpsCpOptions = Object.freeze({
       errorOnExist: true,
       force: false,
@@ -897,9 +874,6 @@ describe("Dir", () => {
     beforeEach(() => {
       srcDir = sandbox.dir("src-dir");
       destDir = sandbox.dir("dest-dir");
-
-      const mockFsOps = mockSandboxFsOps(sandbox);
-      dirOpsStubs = mockFsOps.dirOpsStubs;
 
       dirOpsStubs.cp.resolves();
       mockDirExists(srcDir, true);
@@ -1009,9 +983,6 @@ describe("Dir", () => {
     /** @type { Dir } */
     let destDir;
 
-    /** @type {ReturnType<mockSandboxFsOps>['dirOpsStubs']} */
-    let dirOpsStubs;
-
     const defaultFsModuleCpOptions = Object.freeze({
       errorOnExist: true,
       force: false,
@@ -1040,14 +1011,16 @@ describe("Dir", () => {
         cp: sinonSandbox.stub().resolves(),
       };
 
-      const { sandbox: sb, mockTempRootPath } = createMockedSandbox(
-        sinonSandbox,
-        {
-          fs: fsModuleMocks,
-        },
-      );
+      const {
+        sandbox: sb,
+        mockTempRootPath,
+        dirOpsStubs: dOpsStubs,
+      } = createMockedSandbox(sinonSandbox, {
+        fs: fsModuleMocks,
+      });
 
       sandbox = sb;
+      dirOpsStubs = dOpsStubs;
 
       // existing root directory should not already exist
       fsModuleMocks.access.withArgs(sinon.match(mockTempRootPath)).rejects();
@@ -1055,8 +1028,6 @@ describe("Dir", () => {
       fsModuleMocks.access.withArgs(sinon.match(srcAbsolutePath)).resolves();
 
       destDir = sandbox.root;
-      const mockFsOps = mockSandboxFsOps(sandbox);
-      dirOpsStubs = mockFsOps.dirOpsStubs;
       mockDirExists(destDir, true);
       await sandbox.setup();
     });
