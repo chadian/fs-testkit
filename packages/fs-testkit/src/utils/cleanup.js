@@ -2,7 +2,17 @@
  * @typedef {import('../sandbox.js').Sandbox} Sandbox
  */
 
+process.once("beforeExit", async () => {
+  await Promise.allSettled(
+    CleanUpRegistry.beforeExitCleanUp.map((options) => cleanup(options)),
+  );
+});
+
 export const CleanUpRegistry = {
+  /**
+   * @type {{ fs: import('fs/promises'), throws: boolean, path: string, logs: false }[]}
+   */
+  beforeExitCleanUp: [],
   finalizationRegistry: new FinalizationRegistry(cleanup),
 
   /**
@@ -17,10 +27,8 @@ export const CleanUpRegistry = {
       ...cleanupOptions,
       logs: false,
     });
-    process.once(
-      "beforeExit",
-      cleanup.bind(null, { ...cleanupOptions, logs: false }),
-    );
+
+    this.beforeExitCleanUp.push({ ...cleanupOptions, logs: false });
   },
 };
 
