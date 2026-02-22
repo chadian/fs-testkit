@@ -28,5 +28,10 @@ jobs:
       - name: Run Tests
         run: pnpm test
 
-      - name: Run Smoke Tests
+      - name: Run Smoke Tests (with fs/promises)
+        run: pnpm smoke-test
+
+      - name: Run Smoke Tests (with memfs)
+        env:
+          TEST_MEMFS: 1
         run: pnpm smoke-test
