@@ -1,5 +1,4 @@
 import git from "isomorphic-git";
-import fs from "fs/promises";
 import { tmpdir } from "os";
 import { parse, relative, join, resolve } from "node:path";
 import {
@@ -35,7 +34,7 @@ export class Git {
   /**
    *
    * @param {object} options
-   * @param {typeof fs} options.fs
+   * @param {typeof import('fs/promises')} options.fs
    * @param {string} options.dir
    */
   constructor({ fs, dir }) {
@@ -49,7 +48,7 @@ export class Git {
   }
 
   async setup() {
-    this.gitDir = await fs.mkdtemp(join(tmpdir(), `fs-testkit-git-`));
+    this.gitDir = await this.#fs.mkdtemp(join(tmpdir(), `fs-testkit-git-`));
     CleanUpRegistry.register(this, {
       fs: this.#fs,
       throws: false,

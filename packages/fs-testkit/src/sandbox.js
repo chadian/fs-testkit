@@ -4,12 +4,17 @@ import { tmpdir } from "node:os";
 import { Dir } from "./dir.js";
 import { SandboxDirOperations } from "./sandbox-dir-operations.js";
 import { SandboxFileOperations } from "./sandbox-file-operations.js";
-import * as fs from "node:fs/promises";
 import { Git } from "./git.js";
 import { cleanup, CleanUpRegistry } from "./utils/cleanup.js";
 import { removeUndefinedValues } from "./utils/object.js";
 import { Snapshot } from "./snapshot.js";
 import assert from "node:assert";
+
+// The following START/END posts are so the fs import can be replaced
+// with memfs when running smoke tests
+// START IMPORT FOR FS
+import * as fs from "node:fs/promises";
+// END IMPORT FOR FS
 
 /**
  * @typedef {import('./file.js').File} File
