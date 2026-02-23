@@ -1,0 +1,32 @@
+on:
+  - push
+  - pull_request
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./packages/fs-testkit
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint & Type Checks
+        run: |
+          pnpm lint
+          pnpm tsc
+
+      - name: Run Tests
+        run: pnpm test
+
+      - name: Run Smoke Tests
+        run: pnpm smoke-test
