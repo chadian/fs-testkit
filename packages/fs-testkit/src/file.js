@@ -1,7 +1,6 @@
 import { Dir } from "./dir.js";
 import { buildPath } from "./utils/build-path.js";
 import { extname, resolve } from "node:path";
-import * as prettier from "prettier";
 import { isText } from "istextorbinary";
 import { createPatch, diffLines } from "diff";
 import { fileOidHash } from "./utils/git-oid.js";
@@ -231,6 +230,21 @@ export class File {
     }
 
     if (options.prettier && typeof contents === "string" && this.extension) {
+      /** @type {import("prettier")}  */
+      let prettier;
+
+      try {
+        prettier = (await import("prettier")).default;
+      } catch {
+        const prettierOptionReason = this.#sandbox.options.prettier
+          ? "the global prettier option was set"
+          : "the File.create method was passed an option with prettier set to true";
+
+        throw new Error(
+          `Could not import prettier, is it installed? Attempted to use prettier because ${prettierOptionReason}.`,
+        );
+      }
+
       try {
         contents = await prettier.format(contents, { filepath: this.path });
       } catch (e) {
