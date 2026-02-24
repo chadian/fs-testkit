@@ -1,10 +1,11 @@
 import { File } from "./file.js";
 import { buildPath } from "./utils/build-path.js";
-import { parse, resolve, sep } from "node:path";
+import { isAbsolute, parse, resolve, sep, join, basename } from "node:path";
 import { isScaffoldDir, leaves } from "./utils/scaffold.js";
 import { tree, treeString } from "./utils/tree.js";
 import { contains } from "./utils/path.js";
 import assert from "node:assert";
+import { constants } from "node:fs/promises";
 
 /**
  * @typedef {import('./git.js').Git} Git
@@ -47,7 +48,7 @@ export class Dir {
   }
 
   /**
-   * The directory's relative path
+   * The directory's relative path. Returns an empty string ("") if path is the sandbox root.
    * @returns {string}
    */
   get path() {
@@ -127,6 +128,8 @@ export class Dir {
 
   /**
    * Returns true if the `File` or `Dir` argument is contained by the directory, otherwise false.
+   * This method does not check if anything exists on the filesystem. Use the `exists` method
+   * on `File` or `Dir` instances to check if they exist on the filesystem.
    * @param {File | Dir} fileOrDir
    * @returns {boolean}
    */
@@ -400,6 +403,180 @@ export class Dir {
     return this.#git.diffSnapshot(snapshotOne, snapshotTwo, {
       path,
       includeDirs,
+    });
+  }
+
+  /**
+   * Copies a file or directory into the current directory. See `contentsOnly` option for control over
+   * copying the directory or its contents.
+   * @param {Dir} destDir
+   * @param {object} [options]
+   * @param {string} [options.as] defaults to undefined - when copying the directory and not its contents
+   * the directory copied can be renamed as specified by the `options.as`
+   * @param {boolean} [options.overwrite] defaults to false
+   * @param {boolean} [options.recursive] defaults to true
+   * @param {boolean} [options.contentsOnly] defaults to true - Applies only when copying directories,
+   * when true it copies the contents of the directory (equivalent to `cp src/ dist`),
+   * when false it copies the directory and its contents (equivalent to `cp src dist`)
+   * @returns {Promise<void>}
+   */
+  async copyTo(destDir, options) {
+    options = {
+      overwrite: false,
+      recursive: true,
+      contentsOnly: true,
+      as: undefined,
+      ...options,
+    };
+
+    const srcDir = this;
+
+    if (!(destDir instanceof Dir)) {
+      throw new Error(
+        `Expected first argument of Dir.copyTo to be a \`Dir\` instance`,
+      );
+    }
+
+    if (!(await destDir.exists())) {
+      throw new Error(
+        `Directory "${destDir.name}" must exist before directory or files can be copied into it`,
+      );
+    }
+
+    if (!(await srcDir.exists())) {
+      throw new Error(
+        `Directory "${srcDir.name}" must exist before it can be copied`,
+      );
+    }
+
+    if (options.contentsOnly && options.as) {
+      throw new Error(
+        `The \`options.contentsOnly\` cannot be true while also specifying the options.as\``,
+      );
+    }
+
+    // `alreadyExists` checks for the case that a singular directory (not its contents)
+    // are attempting to be copied to a destination directory but already exists either
+    // as its `options.as` name if specified or the source directory's name
+    const alreadyExists =
+      !options.overwrite &&
+      !options.contentsOnly &&
+      (await destDir.dir(options?.as ?? srcDir.name).exists());
+
+    if (alreadyExists) {
+      throw new Error(
+        `A file or directory already exists as "${options?.as ?? srcDir.name}" at "${destDir.path || "{sandbox root}"}"`,
+      );
+    }
+
+    return this.#sandbox.dirOps.cp(srcDir, destDir, {
+      errorOnExist: true,
+      force: options.overwrite,
+      recursive: options.recursive,
+      contentsOnly: options.contentsOnly,
+      as: options.as,
+    });
+  }
+
+  /**
+   * Copies an file or directory at an absolute path from outside the sandbox into the current directory
+   * @param {string} srcPath
+   * @param {object} [options]
+   * @param {string} [options.as] defaults to undefined - when copying the directory and not its contents
+   * the directory copied can be renamed as specified by the `options.as`
+   * @param {boolean} [options.overwrite] defaults to false
+   * @param {boolean} [options.recursive] defaults to true
+   * @param {boolean} [options.contentsOnly] defaults to true - Applies only when copying directories,
+   * when true it copies the contents of the directory (equivalent to `cp src/ dist`),
+   * when false it copies the directory and its contents (equivalent to `cp src dist`)
+   * @returns {Promise<void>}
+   */
+  async copyFromExternal(srcPath, options) {
+    options = {
+      overwrite: false,
+      recursive: true,
+      contentsOnly: true,
+      as: undefined,
+      ...options,
+    };
+
+    const destDir = this;
+
+    if (typeof srcPath !== "string") {
+      throw new Error(
+        `Expected the first argument of Dir.copyFromExternal to be a string, got "${typeof srcPath}"`,
+      );
+    }
+
+    if (!isAbsolute(srcPath)) {
+      srcPath = resolve(srcPath);
+    }
+
+    if (contains(this.#sandbox.root.absolutePath, srcPath)) {
+      throw new Error(
+        `The source path "${srcPath}" should be outside of the sandbox root directory ${this.#sandbox.root.absolutePath}. Use the \`Dir.copyTo\` method for copying files or directories within a sandbox`,
+      );
+    }
+
+    if (!(await destDir.exists())) {
+      throw new Error(
+        `Directory "${destDir.name}" must exist before directory or files can be copied into it`,
+      );
+    }
+
+    try {
+      await this.#sandbox.options.fs.access(srcPath, constants.R_OK);
+    } catch {
+      throw new Error(
+        `The source path must exist and be accessible: "${srcPath}"`,
+      );
+    }
+
+    const srcIsDirectory = await (
+      await this.#sandbox.options.fs.stat(srcPath)
+    ).isDirectory();
+    if (!srcIsDirectory) {
+      throw new Error(
+        `The source directory to be copied "${srcPath}" must be a directory`,
+      );
+    }
+
+    if (options.contentsOnly && options.as) {
+      throw new Error(
+        `The \`options.contentsOnly\` cannot be true while also specifying the options.as\``,
+      );
+    }
+
+    // `alreadyExists` checks for the case that a singular directory (not its contents)
+    // are attempting to be copied to a destination directory but already exists either
+    // as its `options.as` name if specified or the source directory's name
+    const alreadyExists =
+      !options.overwrite &&
+      !options.contentsOnly &&
+      (await destDir.dir(options?.as ?? basename(srcPath)).exists());
+
+    if (alreadyExists) {
+      throw new Error(
+        `A file or directory already exists as "${options?.as ?? basename(srcPath)}" at "${destDir.path || "{sandbox root}"}"`,
+      );
+    }
+
+    // Copied from the sandbox-dir-operations implementation
+    let src, dest;
+    if (options?.contentsOnly) {
+      src = join(srcPath, sep);
+      dest = destDir.absolutePath;
+    } else {
+      src = srcPath;
+      dest = destDir.dir(
+        options?.as ?? options?.as ?? basename(srcPath),
+      ).absolutePath;
+    }
+
+    return this.#sandbox.options.fs.cp(src, dest, {
+      errorOnExist: true,
+      recursive: options.recursive,
+      force: options.overwrite,
     });
   }
 }

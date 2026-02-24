@@ -1,3 +1,4 @@
+import { Dir } from "./dir.js";
 import { buildPath } from "./utils/build-path.js";
 import { extname, resolve } from "node:path";
 import * as prettier from "prettier";
@@ -6,7 +7,6 @@ import { createPatch, diffLines } from "diff";
 import { fileOidHash } from "./utils/git-oid.js";
 
 /**
- * @typedef {import('./dir.js').Dir} Dir
  * @typedef {import('./git.js').Git} Git
  * @typedef {import('./sandbox.js').Sandbox} Sandbox
  * @typedef {import('./sandbox-file-operations.js').SandboxFileOperations} SandboxFileOperations
@@ -111,7 +111,7 @@ export class File {
 
     if (await renamed.exists()) {
       throw new Error(
-        `The file "${file.name}" cannot be renamed to "${renamed.name}" because a file or directory already exists as "${renamed.name}"`
+        `The file "${file.name}" cannot be renamed to "${renamed.name}" because a file or directory already exists as "${renamed.name}"`,
       );
     }
 
@@ -129,25 +129,74 @@ export class File {
 
     if (!(await file.exists())) {
       throw new Error(
-        `The file "${file.name}" does not exist, so it cannot be moved`
+        `The file "${file.name}" does not exist, so it cannot be moved`,
       );
     }
 
     if (!(await newParent.exists())) {
       throw new Error(
-        `The file "${file.name}" cannot be moved under the directory "${newParent.name}" because "${newParent.name}" does not exist`
+        `The file "${file.name}" cannot be moved under the directory "${newParent.name}" because "${newParent.name}" does not exist`,
       );
     }
 
     const moved = newParent.file(file.name);
     if (await moved.exists()) {
       throw new Error(
-        `The file "${file.name}" cannot be moved under the directory "${newParent.name}" because there already exists a file or directory named "${file.name}" under "${newParent.name}"`
+        `The file "${file.name}" cannot be moved under the directory "${newParent.name}" because there already exists a file or directory named "${file.name}" under "${newParent.name}"`,
       );
     }
 
     await this.#sandbox.fileOps.move(file, newParent);
     return moved;
+  }
+
+  /**
+   * @param {Dir} destDir
+   * @param {object} [options]
+   * @param {boolean} [options.overwrite]
+   * @param {string} [options.as]
+   * @returns {Promise<void>}
+   */
+  async copyTo(destDir, options) {
+    options = {
+      overwrite: false,
+      ...options,
+    };
+
+    const srcFile = this;
+
+    if (!(destDir instanceof Dir)) {
+      throw new Error(
+        `Expected first argument of File.copyTo to be a \`Dir\` instance`,
+      );
+    }
+
+    if (!(await destDir.exists())) {
+      throw new Error(
+        `Directory "${destDir.name}" must exist before directory or files can be copied into it`,
+      );
+    }
+
+    if (!(await srcFile.exists())) {
+      throw new Error(
+        `File "${srcFile.name}" must exist before it can be copied`,
+      );
+    }
+
+    const alreadyExists =
+      !options.overwrite &&
+      (await destDir.file(options?.as ?? srcFile.name).exists());
+
+    if (alreadyExists) {
+      throw new Error(
+        `A file or directory already exists as "${srcFile.name}" at "${destDir.path || "{sandbox root}"}"`,
+      );
+    }
+
+    return this.#sandbox.fileOps.cp(srcFile, destDir, {
+      force: options.overwrite,
+      as: options.as,
+    });
   }
 
   /**
@@ -171,7 +220,7 @@ export class File {
 
     if (!options.overwrite && (await this.exists())) {
       throw new Error(
-        `#write has { overwrite: false } but ${this.path} already exists`
+        `#write has { overwrite: false } but ${this.path} already exists`,
       );
     }
 
@@ -298,19 +347,19 @@ export class File {
 
     if (fileOneBuffer && !isText(filepath, fileOneBuffer)) {
       throw new Error(
-        `Could not create diff of ${this.path}. File at ${snapshotOne} is not a text file`
+        `Could not create diff of ${this.path}. File at ${snapshotOne} is not a text file`,
       );
     }
 
     if (fileTwoBuffer && !isText(filepath, fileTwoBuffer)) {
       throw new Error(
-        `Could not create diff of ${this.path}. File at ${snapshotTwo} is not a text file`
+        `Could not create diff of ${this.path}. File at ${snapshotTwo} is not a text file`,
       );
     }
 
     if (!fileOneBuffer && !fileTwoBuffer) {
       throw new Error(
-        `The file ${this.path} does not exist on either snapshot ${snapshotOne} or ${snapshotTwo}. At least one snapshot must contain the file to create a diff.`
+        `The file ${this.path} does not exist on either snapshot ${snapshotOne} or ${snapshotTwo}. At least one snapshot must contain the file to create a diff.`,
       );
     }
 

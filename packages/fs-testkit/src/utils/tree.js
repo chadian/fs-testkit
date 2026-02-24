@@ -112,7 +112,9 @@ export function treeString(
     })
     .join("");
 
-  const treeEntries = Object.entries(tree);
+  const treeEntries = Object.entries(tree).toSorted(([a], [b]) =>
+    a.localeCompare(b),
+  );
 
   treeEntries.forEach(([name, dirOrFile], i) => {
     const isLastInCurrentLevel = i === treeEntries.length - 1;

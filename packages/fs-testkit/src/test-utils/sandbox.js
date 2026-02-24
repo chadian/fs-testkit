@@ -6,6 +6,38 @@ import { CleanUpRegistry } from "../utils/cleanup.js";
  * @typedef {import("sinon").SinonStub} SinonStub
  */
 
+// eslint-disable-next-line jsdoc/require-returns
+/**
+ * @param {import("sinon").SinonSandbox} sinonSandbox
+ * @param {Sandbox} sandbox
+ */
+function mockSandboxFsOps(sinonSandbox, sandbox) {
+  const dirOpsStubs = {
+    exists: sinonSandbox.stub(sandbox.dirOps, "exists"),
+    mkdir: sinonSandbox.stub(sandbox.dirOps, "mkdir"),
+    rm: sinonSandbox.stub(sandbox.dirOps, "rm"),
+    readdir: sinonSandbox.stub(sandbox.dirOps, "readdir"),
+    access: sinonSandbox.stub(sandbox.dirOps, "access"),
+    rename: sinonSandbox.stub(sandbox.dirOps, "rename"),
+    move: sinonSandbox.stub(sandbox.dirOps, "move"),
+    cp: sinonSandbox.stub(sandbox.dirOps, "cp"),
+  };
+
+  const fileOpsStubs = {
+    exists: sinonSandbox.stub(sandbox.fileOps, "exists"),
+    rm: sinonSandbox.stub(sandbox.fileOps, "rm"),
+    write: sinonSandbox.stub(sandbox.fileOps, "write"),
+    stat: sinonSandbox.stub(sandbox.fileOps, "stat"),
+    read: sinonSandbox.stub(sandbox.fileOps, "read"),
+    access: sinonSandbox.stub(sandbox.fileOps, "access"),
+    rename: sinonSandbox.stub(sandbox.fileOps, "rename"),
+    move: sinonSandbox.stub(sandbox.fileOps, "move"),
+    cp: sinonSandbox.stub(sandbox.fileOps, "cp"),
+  };
+
+  return { dirOpsStubs, fileOpsStubs };
+}
+
 /**
  * Create a `Sandbox` instance with mocked parts of the setup so that after `setup`
  * nothing is actually created on the file system.
@@ -23,6 +55,8 @@ import { CleanUpRegistry } from "../utils/cleanup.js";
  *  sandboxRootCreateStub: SinonStub,
  *  gitSetupStub: SinonStub,
  *  cleanUpRegistryRegisterStub: SinonStub
+ *  dirOpsStubs: ReturnType<typeof mockSandboxFsOps>['dirOpsStubs']
+ *  fileOpsStubs: ReturnType<typeof mockSandboxFsOps>['fileOpsStubs']
  * }}
  */
 export function createMockedSandbox(sinonSandbox, sandboxOptions) {
@@ -66,5 +100,6 @@ export function createMockedSandbox(sinonSandbox, sandboxOptions) {
     sandboxRootCreateStub,
     gitSetupStub,
     cleanUpRegistryRegisterStub,
+    ...mockSandboxFsOps(sinonSandbox, sandbox),
   };
 }

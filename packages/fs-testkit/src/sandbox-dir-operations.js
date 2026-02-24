@@ -1,5 +1,8 @@
+import path from "path";
+
 /**
  * @typedef {import('./dir.js').Dir} Dir
+ * @typedef {import('./file.js').File} File
  * @typedef {import('./git.js').Git} Git
  * @typedef {import('./sandbox.js').Sandbox} Sandbox
  * @typedef {import('node:fs/promises')} Fs
@@ -91,5 +94,35 @@ export class SandboxDirOperations {
       ...options,
       withFileTypes: true,
     });
+  }
+
+  /**
+   * @param {Dir} srcDir
+   * @param {Dir} destDir
+   * @param {import("node:fs").CopyOptions & { contentsOnly?: boolean; as?: string }} [options]
+   * @returns {Promise<void>}
+   */
+  async cp(srcDir, destDir, options) {
+    /** @type {string} */
+    let src;
+
+    /** @type {string} */
+    let dest;
+
+    if (options?.as && options?.contentsOnly) {
+      throw new Error(
+        "`options.as` and `options.contentOnly` cannot both be set. The `options.as` refers to naming the directory being copied where the `contentsOnly` refers to many files or directories of the directory being copied",
+      );
+    }
+
+    if (options?.contentsOnly) {
+      src = path.join(srcDir.absolutePath, path.sep);
+      dest = destDir.absolutePath;
+    } else {
+      src = srcDir.absolutePath;
+      dest = destDir.dir(options?.as ?? srcDir.name).absolutePath;
+    }
+
+    return this.#fs.cp(src, dest, options);
   }
 }

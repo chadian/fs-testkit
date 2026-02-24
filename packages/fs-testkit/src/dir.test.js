@@ -1,11 +1,11 @@
+import * as fs from "fs/promises";
 import { Dir } from "./dir.js";
 import { File } from "./file.js";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import assert from "node:assert";
 import * as sinon from "sinon";
 import { Git } from "./git.js";
-import { join, resolve } from "node:path";
-import { mockSandboxFsOps } from "./test-utils/fs-ops.js";
+import { basename, join, resolve } from "node:path";
 import { createMockedSandbox } from "./test-utils/sandbox.js";
 
 describe("Dir", () => {
@@ -15,11 +15,26 @@ describe("Dir", () => {
   /** @type {import('./sandbox.js').Sandbox} */
   let sandbox;
 
+  /** @type {ReturnType<typeof createMockedSandbox>['dirOpsStubs']} */
+  let dirOpsStubs;
+
+  /** @type {ReturnType<typeof createMockedSandbox>['fileOpsStubs']} */
+  let fileOpsStubs;
+
   const mockTempRootPath = "/mock-tmp/random-uuid";
 
   beforeEach(async () => {
     sinonSandbox = sinon.createSandbox();
-    sandbox = createMockedSandbox(sinonSandbox).sandbox;
+    const {
+      sandbox: s,
+      dirOpsStubs: dOpsStubs,
+      fileOpsStubs: fOpsStubs,
+    } = createMockedSandbox(sinonSandbox);
+
+    sandbox = s;
+    dirOpsStubs = dOpsStubs;
+    fileOpsStubs = fOpsStubs;
+
     await sandbox.setup();
   });
 
@@ -180,14 +195,7 @@ describe("Dir", () => {
   });
 
   describe("#create", () => {
-    /**
-     * @type {ReturnType<typeof mockSandboxFsOps>['dirOpsStubs']}
-     */
-    let dirOpsStubs;
-
     beforeEach(() => {
-      const mockFsOps = mockSandboxFsOps(sandbox);
-      dirOpsStubs = mockFsOps.dirOpsStubs;
       dirOpsStubs.mkdir.callsFake(async (dir) => dir.absolutePath);
     });
 
@@ -248,24 +256,22 @@ describe("Dir", () => {
   });
 
   test("#contents", async () => {
-    const mockFsOps = mockSandboxFsOps(sandbox);
-
     const mockDirEnts = [
       { name: "file-hello-world" },
       { name: "folder-hello-world" },
     ];
 
-    mockFsOps.dirOpsStubs.readdir.returns(
+    dirOpsStubs.readdir.returns(
       /** @type {Promise<import('node:fs').Dirent[]>} */ (
         Promise.resolve(mockDirEnts)
       ),
     );
 
-    mockFsOps.dirOpsStubs.exists
+    dirOpsStubs.exists
       .withArgs(sinon.match({ name: "file-hello-world" }))
       .returns(Promise.resolve(false));
 
-    mockFsOps.dirOpsStubs.exists
+    dirOpsStubs.exists
       .withArgs(sinon.match({ name: "folder-hello-world" }))
       .returns(Promise.resolve(true));
 
@@ -295,7 +301,6 @@ describe("Dir", () => {
     });
 
     test("it renames a directory", async () => {
-      const { dirOpsStubs } = mockSandboxFsOps(sandbox);
       dirOpsStubs.rename.resolves();
 
       const renamedDir = await dir.rename("renamed-dir");
@@ -308,7 +313,6 @@ describe("Dir", () => {
     });
 
     test("it throws when the name the directory is being renamed to is taken by another file or directory", async () => {
-      const { dirOpsStubs } = mockSandboxFsOps(sandbox);
       dirOpsStubs.exists
         .withArgs(sinon.match.has("path", dir.parent?.dir("renamed-dir").path))
         .resolves(true);
@@ -342,8 +346,6 @@ describe("Dir", () => {
     });
 
     test("it moves directory under another directory", async () => {
-      const { dirOpsStubs } = mockSandboxFsOps(sandbox);
-
       // using all sinon matchers for `withArgs` to workaround this issue:
       // https://github.com/sinonjs/sinon/issues/1572
       dirOpsStubs.exists
@@ -365,7 +367,6 @@ describe("Dir", () => {
     });
 
     test("it throws when a directory does not exist", async () => {
-      const { dirOpsStubs } = mockSandboxFsOps(sandbox);
       dirOpsStubs.exists.withArgs(sinon.match.in([dirToMove])).resolves(false);
 
       await assert.rejects(() => dirToMove.move(newDirParent), {
@@ -375,8 +376,6 @@ describe("Dir", () => {
     });
 
     test("it throws when a directory is attempted to be moved under a directory that does not exist", async () => {
-      const { dirOpsStubs } = mockSandboxFsOps(sandbox);
-
       dirOpsStubs.exists.withArgs(sinon.match.in([dirToMove])).resolves(true);
       dirOpsStubs.exists
         .withArgs(sinon.match.in([newDirParent]))
@@ -389,8 +388,6 @@ describe("Dir", () => {
     });
 
     test("it throws when a directory has the same name as a file or directory under the directory it is attempted to be moved under", async () => {
-      const { dirOpsStubs } = mockSandboxFsOps(sandbox);
-
       // using all sinon matchers for `withArgs` to workaround this issue:
       // https://github.com/sinonjs/sinon/issues/1572
       dirOpsStubs.exists
@@ -408,7 +405,6 @@ describe("Dir", () => {
     });
 
     test("it throws when a directory is attempted to be moved under a directory it contains", async () => {
-      const { dirOpsStubs } = mockSandboxFsOps(sandbox);
       dirOpsStubs.rename.resolves();
 
       const dir = new Dir({
@@ -436,8 +432,7 @@ describe("Dir", () => {
       parent: sandbox.root,
     });
 
-    const mockFsOps = mockSandboxFsOps(sandbox);
-    const existsStub = mockFsOps.dirOpsStubs.access
+    const existsStub = dirOpsStubs.access
       .withArgs(sinon.match({ path: "some-dir" }))
       .resolves();
 
@@ -453,23 +448,15 @@ describe("Dir", () => {
       parent: sandbox.root,
     });
 
-    const mockFsOps = mockSandboxFsOps(sandbox);
-    mockFsOps.dirOpsStubs.exists.callsFake(async () => true);
+    dirOpsStubs.exists.resolves(true);
     await dir.exists();
 
-    assert.strictEqual(mockFsOps.dirOpsStubs.exists.calledOnce, true);
-    assert.strictEqual(mockFsOps.dirOpsStubs.exists.firstCall.args[0], dir);
+    assert.strictEqual(dirOpsStubs.exists.calledOnce, true);
+    assert.strictEqual(dirOpsStubs.exists.firstCall.args[0], dir);
   });
 
   describe("#delete", () => {
-    /**
-     * @type {ReturnType<typeof mockSandboxFsOps>['dirOpsStubs']}
-     */
-    let dirOpsStubs;
-
     beforeEach(() => {
-      const mockFsOps = mockSandboxFsOps(sandbox);
-      dirOpsStubs = mockFsOps.dirOpsStubs;
       dirOpsStubs.rm.callsFake(async () => {});
     });
 
@@ -515,15 +502,9 @@ describe("Dir", () => {
   });
 
   describe("#scaffold", () => {
-    /**
-     * @type {ReturnType<typeof mockSandboxFsOps>}
-     */
-    let mockFsOps;
-
     beforeEach(() => {
-      mockFsOps = mockSandboxFsOps(sandbox);
-      mockFsOps.dirOpsStubs.rm.callsFake(async () => {});
-      mockFsOps.dirOpsStubs.mkdir.callsFake(async (dir) => dir.absolutePath);
+      dirOpsStubs.rm.callsFake(async () => {});
+      dirOpsStubs.mkdir.callsFake(async (dir) => dir.absolutePath);
     });
 
     test("it can scaffold out a structure of files and directories", async () => {
@@ -569,19 +550,19 @@ describe("Dir", () => {
       const numberOfEmptyDirectories = 2;
 
       assert.strictEqual(
-        mockFsOps.dirOpsStubs.mkdir.callCount,
+        dirOpsStubs.mkdir.callCount,
         numberOfRootFiles + numberOfNonRootFiles + numberOfEmptyDirectories,
         "each file and empty directory is considered a leaf and has a recursive mkdir called for it",
       );
 
       assert.strictEqual(
-        mockFsOps.fileOpsStubs.write.callCount,
+        fileOpsStubs.write.callCount,
         numberOfRootFiles + numberOfNonRootFiles,
         "each file is called with create",
       );
 
-      const mkdirStub = mockFsOps.dirOpsStubs.mkdir;
-      const writeCallStub = mockFsOps.fileOpsStubs.write;
+      const mkdirStub = dirOpsStubs.mkdir;
+      const writeCallStub = fileOpsStubs.write;
 
       const checkFsOpForPath = (
         /** @type {import("./test-utils/sandbox.js").SinonStub} */ fsOpStub,
@@ -861,5 +842,319 @@ describe("Dir", () => {
       `snapshot-b`,
       { path: dir.path, includeDirs: true },
     ]);
+  });
+
+  describe("#copyTo", () => {
+    /** @type {Dir} */
+    let srcDir;
+
+    /** @type { Dir } */
+    let destDir;
+
+    const defaultDirOpsCpOptions = Object.freeze({
+      errorOnExist: true,
+      force: false,
+      recursive: true,
+      contentsOnly: true,
+      as: undefined,
+    });
+
+    /**
+     * using all sinon matchers for `withArgs` to workaround this issue:
+       https://github.com/sinonjs/sinon/issues/1572
+     * @param {Dir} dir 
+     * @param {boolean} exists 
+     */
+    const mockDirExists = (dir, exists) => {
+      dirOpsStubs.exists
+        .withArgs(sinon.match.has("path", dir.path))
+        .resolves(exists);
+    };
+
+    beforeEach(() => {
+      srcDir = sandbox.dir("src-dir");
+      destDir = sandbox.dir("dest-dir");
+
+      dirOpsStubs.cp.resolves();
+      mockDirExists(srcDir, true);
+      mockDirExists(destDir, true);
+    });
+
+    test("it can copy a directory", async () => {
+      await srcDir.copyTo(destDir);
+      assert.strictEqual(dirOpsStubs.cp.calledOnce, true);
+      assert.deepEqual(dirOpsStubs.cp.firstCall.args, [
+        srcDir,
+        destDir,
+        defaultDirOpsCpOptions,
+      ]);
+    });
+
+    test("specified options are passed through", async () => {
+      const specifiedOptions = {
+        overwrite: true,
+        recursive: false,
+        contentsOnly: false,
+        as: "renamed-dir",
+      };
+
+      await srcDir.copyTo(destDir, specifiedOptions);
+      assert.strictEqual(dirOpsStubs.cp.calledOnce, true);
+      assert.deepEqual(dirOpsStubs.cp.firstCall.args, [
+        srcDir,
+        destDir,
+        {
+          force: specifiedOptions.overwrite,
+          recursive: specifiedOptions.recursive,
+          contentsOnly: specifiedOptions.contentsOnly,
+          errorOnExist: defaultDirOpsCpOptions.errorOnExist,
+          as: "renamed-dir",
+        },
+      ]);
+    });
+
+    test("it throws when the first argument passed in is not a `Dir` instance", async () => {
+      await assert.rejects(
+        () =>
+          srcDir.copyTo(
+            // eslint-disable-next-line jsdoc/reject-any-type
+            /** @type {any} */ ("not a file or directory instance"),
+          ),
+        {
+          message:
+            "Expected first argument of Dir.copyTo to be a `Dir` instance",
+        },
+      );
+    });
+
+    test("it throws when the source directory does not exist", async () => {
+      mockDirExists(srcDir, false);
+
+      await assert.rejects(async () => srcDir.copyTo(destDir), {
+        message: `Directory "src-dir" must exist before it can be copied`,
+      });
+    });
+
+    describe("option: overwite", async () => {
+      test("it defaults to false", async () => {
+        await srcDir.copyTo(destDir);
+        assert.strictEqual(dirOpsStubs.cp.calledOnce, true);
+        assert.strictEqual(dirOpsStubs.cp.firstCall.args[2]?.force, false);
+        assert.strictEqual(
+          dirOpsStubs.cp.firstCall.args[2]?.errorOnExist,
+          true,
+        );
+      });
+
+      test("it accepts a passed in true value", async () => {
+        await srcDir.copyTo(destDir, { overwrite: true });
+        assert.strictEqual(dirOpsStubs.cp.calledOnce, true);
+        assert.strictEqual(dirOpsStubs.cp.firstCall.args[2]?.force, true);
+        assert.strictEqual(
+          dirOpsStubs.cp.firstCall.args[2]?.errorOnExist,
+          true,
+        );
+      });
+
+      test("it throws when overwrite: false and contentsOnly: false, and the file or directory already exists at the location being copied to", async () => {
+        mockDirExists(destDir.dir(srcDir.name), true);
+
+        await assert.rejects(
+          async () =>
+            await srcDir.copyTo(destDir, {
+              contentsOnly: false,
+              overwrite: false,
+            }),
+          {
+            message: `A file or directory already exists as "src-dir" at "dest-dir"`,
+          },
+        );
+      });
+    });
+  });
+
+  describe("#copyFromExternal", () => {
+    const srcAbsolutePath = "/some/external/absolute/path/";
+
+    // eslint-disable-next-line jsdoc/reject-any-type
+    /** @type { Record<keyof import('fs/promises'), any>} */
+    let fsModuleMocks;
+
+    /** @type { Dir } */
+    let destDir;
+
+    const defaultFsModuleCpOptions = Object.freeze({
+      errorOnExist: true,
+      force: false,
+      recursive: true,
+    });
+
+    /**
+     * using all sinon matchers for `withArgs` to workaround this issue:
+       https://github.com/sinonjs/sinon/issues/1572
+     * @param {Dir} dir 
+     * @param {boolean} exists 
+     */
+    const mockDirExists = (dir, exists) => {
+      dirOpsStubs.exists
+        .withArgs(sinon.match.has("path", dir.path))
+        .resolves(exists);
+    };
+
+    beforeEach(async () => {
+      fsModuleMocks = {
+        ...fs,
+
+        // `Dir.copyFromExternal` only uses stat for the `isDirectory` check
+        stat: sinonSandbox.stub().resolves({ isDirectory: () => true }),
+        access: sinonSandbox.stub(),
+        cp: sinonSandbox.stub().resolves(),
+      };
+
+      const {
+        sandbox: sb,
+        mockTempRootPath,
+        dirOpsStubs: dOpsStubs,
+      } = createMockedSandbox(sinonSandbox, {
+        fs: fsModuleMocks,
+      });
+
+      sandbox = sb;
+      dirOpsStubs = dOpsStubs;
+
+      // existing root directory should not already exist
+      fsModuleMocks.access.withArgs(sinon.match(mockTempRootPath)).rejects();
+      // source absolute path being copied should exist
+      fsModuleMocks.access.withArgs(sinon.match(srcAbsolutePath)).resolves();
+
+      destDir = sandbox.root;
+      mockDirExists(destDir, true);
+      await sandbox.setup();
+    });
+
+    test("it can copy a directory", async () => {
+      await sandbox.root.copyFromExternal(srcAbsolutePath);
+
+      assert.strictEqual(fsModuleMocks.cp.calledOnce, true);
+      assert.deepEqual(fsModuleMocks.cp.firstCall.args, [
+        srcAbsolutePath,
+        destDir.absolutePath,
+        defaultFsModuleCpOptions,
+      ]);
+    });
+
+    test("specified options are passed through", async () => {
+      const specifiedOptions = {
+        overwrite: true,
+        recursive: false,
+        contentsOnly: false,
+        as: "renamed-dir",
+      };
+
+      await sandbox.root.copyFromExternal(srcAbsolutePath, specifiedOptions);
+      assert.strictEqual(fsModuleMocks.cp.calledOnce, true);
+      assert.deepEqual(fsModuleMocks.cp.firstCall.args, [
+        srcAbsolutePath,
+        join(destDir.absolutePath, specifiedOptions.as),
+        {
+          errorOnExist: defaultFsModuleCpOptions.errorOnExist,
+          force: specifiedOptions.overwrite,
+          recursive: specifiedOptions.recursive,
+        },
+      ]);
+    });
+
+    test("it throws when the first argument passed in is not a string", async () => {
+      await assert.rejects(
+        () =>
+          sandbox.root.copyFromExternal(
+            // eslint-disable-next-line jsdoc/reject-any-type
+            /** @type {any} */ ({}),
+          ),
+        {
+          message: `Expected the first argument of Dir.copyFromExternal to be a string, got "object"`,
+        },
+      );
+    });
+
+    test("it throws when the specified path is internal to the sandbox", async () => {
+      await assert.rejects(
+        () =>
+          sandbox.root.copyFromExternal(
+            sandbox.root.dir("some-dir").absolutePath,
+          ),
+        {
+          message:
+            'The source path "/mock-tmp/random-uuid/some-dir" should be outside of the sandbox root directory /mock-tmp/random-uuid. Use the `Dir.copyTo` method for copying files or directories within a sandbox',
+        },
+      );
+    });
+
+    test("it throws when the source directory does not exist", async () => {
+      fsModuleMocks.access.withArgs(sinon.match(srcAbsolutePath)).rejects();
+
+      await assert.rejects(
+        async () => sandbox.root.copyFromExternal(srcAbsolutePath),
+        {
+          message: `The source path must exist and be accessible: "/some/external/absolute/path/"`,
+        },
+      );
+    });
+
+    test("it throws when the specified path is not a directory", async () => {
+      fsModuleMocks.stat.resolves({ isDirectory: () => false });
+
+      await assert.rejects(
+        () => sandbox.root.copyFromExternal(srcAbsolutePath),
+        {
+          message: `The source directory to be copied "/some/external/absolute/path/" must be a directory`,
+        },
+      );
+    });
+
+    describe("option: overwite", async () => {
+      test("it defaults to false", async () => {
+        await sandbox.root.copyFromExternal(srcAbsolutePath);
+        assert.strictEqual(fsModuleMocks.cp.calledOnce, true);
+        assert.strictEqual(fsModuleMocks.cp.firstCall.args[2]?.force, false);
+        assert.strictEqual(
+          fsModuleMocks.cp.firstCall.args[2]?.errorOnExist,
+          true,
+        );
+      });
+
+      test("it accepts a passed in true value", async () => {
+        await sandbox.root.copyFromExternal(srcAbsolutePath, {
+          overwrite: true,
+        });
+        assert.strictEqual(fsModuleMocks.cp.calledOnce, true);
+        assert.strictEqual(fsModuleMocks.cp.firstCall.args[2]?.force, true);
+        assert.strictEqual(
+          fsModuleMocks.cp.firstCall.args[2]?.errorOnExist,
+          true,
+        );
+      });
+
+      test("it throws when overwrite: false and contentsOnly: false, and the file or directory already exists at the location being copied to", async () => {
+        sinonSandbox
+          .stub(destDir, "dir")
+          .withArgs(basename(srcAbsolutePath))
+          .returns(
+            // eslint-disable-next-line jsdoc/reject-any-type
+            /** @type { any } */ ({ exists: () => Promise.resolve(true) }),
+          );
+
+        await assert.rejects(
+          async () =>
+            await sandbox.root.copyFromExternal(srcAbsolutePath, {
+              contentsOnly: false,
+              overwrite: false,
+            }),
+          {
+            message: `A file or directory already exists as "path" at "{sandbox root}"`,
+          },
+        );
+      });
+    });
   });
 });
