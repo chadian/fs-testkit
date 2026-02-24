@@ -1077,13 +1077,46 @@ describe("Dir", () => {
       );
     });
 
+    test("it throws when the specified path is not an absolute path", async () => {
+      await assert.rejects(
+        () => sandbox.root.copyFromExternal("./some/relative/path"),
+        {
+          message: `Expected "./some/relative/path" to be an asbolute path. Dir.copyFromExternal only copies from external paths`,
+        },
+      );
+    });
+
+    test("it throws when the specified path is internal to the sandbox", async () => {
+      await assert.rejects(
+        () =>
+          sandbox.root.copyFromExternal(
+            sandbox.root.dir("some-dir").absolutePath,
+          ),
+        {
+          message:
+            "Absolute path /mock-tmp/random-uuid/some-dir should be outside of the sandbox root directory /mock-tmp/random-uuid. Use the `Dir.copyTo` method for copying files or directories within a sandbox",
+        },
+      );
+    });
+
     test("it throws when the source directory does not exist", async () => {
       fsModuleMocks.access.withArgs(sinon.match(srcAbsolutePath)).rejects();
 
       await assert.rejects(
         async () => sandbox.root.copyFromExternal(srcAbsolutePath),
         {
-          message: `Unable to access absolute path to copy: "/some/external/absolute/path/"`,
+          message: `The source path must exist and be accessible: "/some/external/absolute/path/"`,
+        },
+      );
+    });
+
+    test("it throws when the specified path is not a directory", async () => {
+      fsModuleMocks.stat.resolves({ isDirectory: () => false });
+
+      await assert.rejects(
+        () => sandbox.root.copyFromExternal(srcAbsolutePath),
+        {
+          message: `The source directory to be copied "/some/external/absolute/path/" must be a directory`,
         },
       );
     });

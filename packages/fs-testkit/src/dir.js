@@ -530,7 +530,7 @@ export class Dir {
       await this.#sandbox.options.fs.access(srcAbsolutePath, constants.R_OK);
     } catch {
       throw new Error(
-        `Unable to access absolute path to copy: "${srcAbsolutePath}"`,
+        `The source path must exist and be accessible: "${srcAbsolutePath}"`,
       );
     }
 
