@@ -499,7 +499,7 @@ with [`Dir.treeString`](/fs-testkit/-api/dir.Class.Dir#treestring).
 - [`parent`](/fs-testkit/-api/dir.Class.Dir#parent)
 - [`path`](/fs-testkit/-api/dir.Class.Dir#path)
 
-See the [`Dir` API documentation](api/dir.Class.Dir) for more.
+See the [`Dir` API documentation](/fs-testkit/-api/dir.Class.Dir) for more.
 
 ### `Dir` Filesystem Operations
 
@@ -516,8 +516,8 @@ See the [`Dir` API documentation](api/dir.Class.Dir) for more.
 - [`rename`](/fs-testkit/-api/dir.Class.Dir#rename)
 - [`scaffold`](/fs-testkit/-api/dir.Class.Dir#scaffold)
 
-See the [`Dir` API documentation](api/dir.Class.Dir) for the full set of methods
-available.
+See the [`Dir` API documentation](/fs-testkit/-api/dir.Class.Dir) for the full
+set of methods available.
 
 ### Diffing
 
