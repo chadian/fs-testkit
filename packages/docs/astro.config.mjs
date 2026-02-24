@@ -8,7 +8,8 @@ import mdx from "@astrojs/mdx";
 // https://astro.build/config
 export default defineConfig({
   site: "https://chadian.github.io",
-  base: "/fs-testkit",
+  base: "/fs-testkit/",
+  trailingSlash: "always",
 
   vite: {
     plugins: [tailwindcss()],
