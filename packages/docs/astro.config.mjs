@@ -15,6 +15,10 @@ export default defineConfig({
     plugins: [tailwindcss()],
   },
 
+  build: {
+    format: "file",
+  },
+
   markdown: {
     rehypePlugins: [
       rehypeSlug,
