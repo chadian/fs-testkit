@@ -17,7 +17,7 @@ const indexMenuItems = (
 
       return {
         id,
-        href: `/fs-testkit/-api/${id}`,
+        href: `/fs-testkit/-api/${id}.html`,
         text: mainHeading?.text,
       };
     }),
@@ -51,7 +51,9 @@ const modules = indexMenuItems.filter(({ text, id }) => {
 
 <Main>
   <TableOfContents headings={[]}>
-    <div slot="before-menu"><a href="/fs-testkit">← Main Docs</a></div>
+    <div slot="before-menu">
+      <a href="/fs-testkit/index.html">← Main Docs</a>
+    </div>
   </TableOfContents>
   <h1>API Index</h1>
 
