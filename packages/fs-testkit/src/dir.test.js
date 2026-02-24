@@ -1077,15 +1077,6 @@ describe("Dir", () => {
       );
     });
 
-    test("it throws when the specified path is not an absolute path", async () => {
-      await assert.rejects(
-        () => sandbox.root.copyFromExternal("./some/relative/path"),
-        {
-          message: `Expected "./some/relative/path" to be an asbolute path. Dir.copyFromExternal only copies from external paths`,
-        },
-      );
-    });
-
     test("it throws when the specified path is internal to the sandbox", async () => {
       await assert.rejects(
         () =>
@@ -1094,7 +1085,7 @@ describe("Dir", () => {
           ),
         {
           message:
-            "Absolute path /mock-tmp/random-uuid/some-dir should be outside of the sandbox root directory /mock-tmp/random-uuid. Use the `Dir.copyTo` method for copying files or directories within a sandbox",
+            'The source path "/mock-tmp/random-uuid/some-dir" should be outside of the sandbox root directory /mock-tmp/random-uuid. Use the `Dir.copyTo` method for copying files or directories within a sandbox',
         },
       );
     });

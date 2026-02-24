@@ -480,7 +480,7 @@ export class Dir {
 
   /**
    * Copies an file or directory at an absolute path from outside the sandbox into the current directory
-   * @param {string} srcAbsolutePath
+   * @param {string} srcPath
    * @param {object} [options]
    * @param {string} [options.as] defaults to undefined - when copying the directory and not its contents
    * the directory copied can be renamed as specified by the `options.as`
@@ -491,7 +491,7 @@ export class Dir {
    * when false it copies the directory and its contents (equivalent to `cp src dist`)
    * @returns {Promise<void>}
    */
-  async copyFromExternal(srcAbsolutePath, options) {
+  async copyFromExternal(srcPath, options) {
     options = {
       overwrite: false,
       recursive: true,
@@ -502,21 +502,19 @@ export class Dir {
 
     const destDir = this;
 
-    if (typeof srcAbsolutePath !== "string") {
+    if (typeof srcPath !== "string") {
       throw new Error(
-        `Expected the first argument of Dir.copyFromExternal to be a string, got "${typeof srcAbsolutePath}"`,
+        `Expected the first argument of Dir.copyFromExternal to be a string, got "${typeof srcPath}"`,
       );
     }
 
-    if (!isAbsolute(srcAbsolutePath)) {
-      throw new Error(
-        `Expected "${srcAbsolutePath}" to be an asbolute path. Dir.copyFromExternal only copies from external paths`,
-      );
+    if (!isAbsolute(srcPath)) {
+      srcPath = resolve(srcPath);
     }
 
-    if (contains(this.#sandbox.root.absolutePath, srcAbsolutePath)) {
+    if (contains(this.#sandbox.root.absolutePath, srcPath)) {
       throw new Error(
-        `Absolute path ${srcAbsolutePath} should be outside of the sandbox root directory ${this.#sandbox.root.absolutePath}. Use the \`Dir.copyTo\` method for copying files or directories within a sandbox`,
+        `The source path "${srcPath}" should be outside of the sandbox root directory ${this.#sandbox.root.absolutePath}. Use the \`Dir.copyTo\` method for copying files or directories within a sandbox`,
       );
     }
 
@@ -527,19 +525,19 @@ export class Dir {
     }
 
     try {
-      await this.#sandbox.options.fs.access(srcAbsolutePath, constants.R_OK);
+      await this.#sandbox.options.fs.access(srcPath, constants.R_OK);
     } catch {
       throw new Error(
-        `The source path must exist and be accessible: "${srcAbsolutePath}"`,
+        `The source path must exist and be accessible: "${srcPath}"`,
       );
     }
 
     const srcIsDirectory = await (
-      await this.#sandbox.options.fs.stat(srcAbsolutePath)
+      await this.#sandbox.options.fs.stat(srcPath)
     ).isDirectory();
     if (!srcIsDirectory) {
       throw new Error(
-        `The source directory to be copied "${srcAbsolutePath}" must be a directory`,
+        `The source directory to be copied "${srcPath}" must be a directory`,
       );
     }
 
@@ -555,23 +553,23 @@ export class Dir {
     const alreadyExists =
       !options.overwrite &&
       !options.contentsOnly &&
-      (await destDir.dir(options?.as ?? basename(srcAbsolutePath)).exists());
+      (await destDir.dir(options?.as ?? basename(srcPath)).exists());
 
     if (alreadyExists) {
       throw new Error(
-        `A file or directory already exists as "${options?.as ?? basename(srcAbsolutePath)}" at "${destDir.path || "{sandbox root}"}"`,
+        `A file or directory already exists as "${options?.as ?? basename(srcPath)}" at "${destDir.path || "{sandbox root}"}"`,
       );
     }
 
     // Copied from the sandbox-dir-operations implementation
     let src, dest;
     if (options?.contentsOnly) {
-      src = join(srcAbsolutePath, sep);
+      src = join(srcPath, sep);
       dest = destDir.absolutePath;
     } else {
-      src = srcAbsolutePath;
+      src = srcPath;
       dest = destDir.dir(
-        options?.as ?? options?.as ?? basename(srcAbsolutePath),
+        options?.as ?? options?.as ?? basename(srcPath),
       ).absolutePath;
     }
 
