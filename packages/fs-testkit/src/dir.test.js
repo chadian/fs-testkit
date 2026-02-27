@@ -437,7 +437,7 @@ describe("Dir", () => {
       .resolves();
 
     const result = await dir.access();
-    assert.strictEqual(result, undefined);
+    assert.strictEqual(result, dir);
     assert.strictEqual(existsStub.calledOnce, true);
   });
 

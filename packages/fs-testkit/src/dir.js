@@ -141,17 +141,21 @@ export class Dir {
    * Creates the directory on the filesystem. By default, intermediate directories are
    * recursively created, this can be changed by providing a `options.recursive` argument
    * @param {Parameters<SandboxDirOperations['mkdir']>[1]} [options]
-   * @returns {Promise<void>}
+   * @returns {Promise<this>}
    */
   async create(options) {
     const dir = this;
     options = options ?? {};
     options = typeof options === "object" ? options : { mode: options };
     options = { recursive: true, ...options };
-    return this.#sandbox.dirOps.mkdir(dir, options).then(() => {});
+    await this.#sandbox.dirOps.mkdir(dir, options);
+
+    return dir;
   }
 
   /**
+   * Provides the contents of the directory as an array of `Dir` and `File` instances
+   * Alias for {@link Dir.contents}
    * @param {Parameters<Dir["contents"]>[0]} options
    * @returns {ReturnType<Dir["contents"]>}
    */
@@ -238,19 +242,20 @@ export class Dir {
   }
 
   /**
-   * Check the access of the directory on the filesystem
+   * Check the access of the directory on the filesystem, returned promise rejects if not accessible,
+   * otherwise resolves
    * @param {Parameters<SandboxDirOperations['access']>[1]} [mode]
-   * @returns {ReturnType<SandboxDirOperations['access']>}
+   * @returns {Promise<this>}
    */
   async access(mode) {
     const dir = this;
-    return this.#sandbox.dirOps.access(dir, mode);
+    await this.#sandbox.dirOps.access(dir, mode);
+    return dir;
   }
 
   /**
-   * Check the access of the directory on the filesystem
-   * Not exactly the same as `exists` but should work in most cases
-   * based on access(file, F_OK). See: https://github.com/nodejs/node/issues/39960
+   * Returns true if the directory exists on the filesystem, otherwise false,
+   * based on fs.access(file, F_OK).
    * Implementation subject to change
    * @returns {ReturnType<SandboxDirOperations['exists']>}
    */
@@ -263,13 +268,14 @@ export class Dir {
   /**
    * Delete the directory on the filesystem
    * @param {Parameters<SandboxDirOperations['rm']>[1]} [options]
-   * @returns {ReturnType<SandboxDirOperations['rm']>}
+   * @returns {Promise<this>}
    */
   async delete(options) {
     const dir = this;
     options = options ?? options;
     options = { recursive: true, force: true, ...options };
-    return this.#sandbox.dirOps.rm(dir, options);
+    await this.#sandbox.dirOps.rm(dir, options);
+    return dir;
   }
 
   /**
