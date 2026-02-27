@@ -495,7 +495,9 @@ export class Dir {
    * @param {boolean} [options.contentsOnly] defaults to true - Applies only when copying directories,
    * when true it copies the contents of the directory (equivalent to `cp src/ dist`),
    * when false it copies the directory and its contents (equivalent to `cp src dist`)
-   * @returns {Promise<void>}
+   * @returns {Promise<(Dir | File)[]>} Returns an array of `Dir` and/or `File` instances representing
+   * the copied items. When copying a directory and its contents (`options.contentsOnly` is false)
+   * the returned array contains a single `Dir` instance.
    */
   async copyFromExternal(srcPath, options) {
     options = {
@@ -538,9 +540,10 @@ export class Dir {
       );
     }
 
-    const srcIsDirectory = await (
+    const srcIsDirectory = (
       await this.#sandbox.options.fs.stat(srcPath)
     ).isDirectory();
+
     if (!srcIsDirectory) {
       throw new Error(
         `The source directory to be copied "${srcPath}" must be a directory`,
@@ -553,36 +556,46 @@ export class Dir {
       );
     }
 
-    // `alreadyExists` checks for the case that a singular directory (not its contents)
-    // are attempting to be copied to a destination directory but already exists either
-    // as its `options.as` name if specified or the source directory's name
-    const alreadyExists =
-      !options.overwrite &&
-      !options.contentsOnly &&
-      (await destDir.dir(options?.as ?? basename(srcPath)).exists());
+    /** @type {string} */ let srcCp;
+    /** @type {Dir} */ let destCpDir;
+    /** @type {(Dir | File)[]} */ let copiedContents;
 
-    if (alreadyExists) {
-      throw new Error(
-        `A file or directory already exists as "${options?.as ?? basename(srcPath)}" at "${destDir.path || "{sandbox root}"}"`,
-      );
-    }
-
-    // Copied from the sandbox-dir-operations implementation
-    let src, dest;
     if (options?.contentsOnly) {
-      src = join(srcPath, sep);
-      dest = destDir.absolutePath;
+      srcCp = join(srcPath, sep);
+      destCpDir = destDir;
+
+      // Read source entries before copying so we track exactly what is copied.
+      // It's possible that this list could be out of sync with the actual copied
+      // contents are changed between this read and the copy operation
+      const dirents = await this.#sandbox.options.fs.readdir(srcPath, {
+        withFileTypes: true,
+      });
+
+      copiedContents = dirents.map((dirent) =>
+        dirent.isDirectory()
+          ? destCpDir.dir(dirent.name)
+          : destCpDir.file(dirent.name),
+      );
     } else {
-      src = srcPath;
-      dest = destDir.dir(
-        options?.as ?? options?.as ?? basename(srcPath),
-      ).absolutePath;
+      srcCp = srcPath;
+      destCpDir = destDir.dir(options?.as ?? basename(srcPath));
+
+      const alreadyExists = !options.overwrite && (await destCpDir.exists());
+      if (alreadyExists) {
+        throw new Error(
+          `A file or directory already exists as "${options?.as ?? basename(srcPath)}" at "${destDir.path || "{sandbox root}"}"`,
+        );
+      }
+
+      copiedContents = [destCpDir];
     }
 
-    return this.#sandbox.options.fs.cp(src, dest, {
+    await this.#sandbox.options.fs.cp(srcCp, destCpDir.absolutePath, {
       errorOnExist: true,
       recursive: options.recursive,
       force: options.overwrite,
     });
+
+    return copiedContents;
   }
 }

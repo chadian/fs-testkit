@@ -385,7 +385,16 @@ describe("Dirs", () => {
       await sandboxA.scaffold({ ["README.md"]: readmeContents });
 
       const sandboxB = await createSandbox();
-      await sandboxB.root.copyFromExternal(sandboxA.root.absolutePath);
+      const result = await sandboxB.root.copyFromExternal(
+        sandboxA.root.absolutePath,
+      );
+
+      assert.deepEqual(
+        result.map((item) => item.path),
+        ["README.md"],
+        "returned array contains correct `File` instance",
+      );
+
       assert.strictEqual(
         await sandboxB.root.treeString(),
         `
@@ -404,12 +413,20 @@ describe("Dirs", () => {
       await sandboxA.scaffold({ dir: { ["README.md"]: readmeContents } });
 
       const sandboxB = await createSandbox();
-      await sandboxB.root.copyFromExternal(
+
+      const result = await sandboxB.root.copyFromExternal(
         sandboxA.root.dir("dir").absolutePath,
         {
           contentsOnly: false,
         },
       );
+
+      assert.deepEqual(
+        result.map((item) => item.path),
+        ["dir"],
+        "returned array contains correct `Dir` instance",
+      );
+
       assert.strictEqual(
         await sandboxB.root.treeString(),
         `

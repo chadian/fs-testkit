@@ -1009,6 +1009,7 @@ describe("Dir", () => {
         stat: sinonSandbox.stub().resolves({ isDirectory: () => true }),
         access: sinonSandbox.stub(),
         cp: sinonSandbox.stub().resolves(),
+        readdir: sinonSandbox.stub().resolves(),
       };
 
       const {
@@ -1027,13 +1028,33 @@ describe("Dir", () => {
       // source absolute path being copied should exist
       fsModuleMocks.access.withArgs(sinon.match(srcAbsolutePath)).resolves();
 
+      fsModuleMocks.readdir
+        .withArgs(sinon.match(srcAbsolutePath), { withFileTypes: true })
+        .resolves([
+          { name: "README.md", isDirectory: () => false },
+          { name: "src", isDirectory: () => true },
+          { name: "package.json", isDirectory: () => false },
+        ]);
+
       destDir = sandbox.root;
       mockDirExists(destDir, true);
       await sandbox.setup();
     });
 
     test("it can copy a directory", async () => {
-      await sandbox.root.copyFromExternal(srcAbsolutePath);
+      const result = await sandbox.root.copyFromExternal(srcAbsolutePath);
+
+      assert.deepEqual(
+        result.map((fileInstance) => ({
+          class: fileInstance.constructor.name,
+          path: fileInstance.path,
+        })),
+        [
+          { class: "File", path: "README.md" },
+          { class: "Dir", path: "src" },
+          { class: "File", path: "package.json" },
+        ],
+      );
 
       assert.strictEqual(fsModuleMocks.cp.calledOnce, true);
       assert.deepEqual(fsModuleMocks.cp.firstCall.args, [
@@ -1041,6 +1062,32 @@ describe("Dir", () => {
         destDir.absolutePath,
         defaultFsModuleCpOptions,
       ]);
+      assert.strictEqual(fsModuleMocks.readdir.calledOnce, true);
+    });
+
+    test("it can copy a directory as a specific name (as, contentsOnly: false)", async () => {
+      mockDirExists(destDir.dir("renamed-dir"), false);
+
+      const result = await sandbox.root.copyFromExternal(srcAbsolutePath, {
+        contentsOnly: false,
+        as: "renamed-dir",
+      });
+
+      assert.strictEqual(fsModuleMocks.cp.calledOnce, true);
+
+      assert.deepEqual(fsModuleMocks.cp.firstCall.args, [
+        srcAbsolutePath,
+        join(destDir.absolutePath, "renamed-dir"),
+        defaultFsModuleCpOptions,
+      ]);
+
+      assert.deepEqual(
+        result.map((item) => ({
+          class: item.constructor.name,
+          path: item.path,
+        })),
+        [{ class: "Dir", path: "renamed-dir" }],
+      );
     });
 
     test("specified options are passed through", async () => {
