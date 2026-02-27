@@ -424,7 +424,7 @@ export class Dir {
    * @param {boolean} [options.contentsOnly] defaults to true - Applies only when copying directories,
    * when true it copies the contents of the directory (equivalent to `cp src/ dist`),
    * when false it copies the directory and its contents (equivalent to `cp src dist`)
-   * @returns {Promise<void>}
+   * @returns {Promise<(Dir | File)[]>}
    */
   async copyTo(destDir, options) {
     options = {
@@ -461,27 +461,40 @@ export class Dir {
       );
     }
 
-    // `alreadyExists` checks for the case that a singular directory (not its contents)
-    // are attempting to be copied to a destination directory but already exists either
-    // as its `options.as` name if specified or the source directory's name
-    const alreadyExists =
-      !options.overwrite &&
-      !options.contentsOnly &&
-      (await destDir.dir(options?.as ?? srcDir.name).exists());
+    /** @type {(Dir | File)[]} */ let copiedContents;
 
-    if (alreadyExists) {
-      throw new Error(
-        `A file or directory already exists as "${options?.as ?? srcDir.name}" at "${destDir.path || "{sandbox root}"}"`,
+    if (options.contentsOnly) {
+      // Read source entries before copying so we track exactly what is copied.
+      // It's possible that this list could be out of sync with the actual copied
+      // contents if entries are changed between this read and the copy operation
+      const dirents = await this.#sandbox.dirOps.readdir(srcDir);
+      copiedContents = dirents.map((dirent) =>
+        dirent.isDirectory()
+          ? destDir.dir(dirent.name)
+          : destDir.file(dirent.name),
       );
+    } else {
+      const destCpDir = destDir.dir(options?.as ?? srcDir.name);
+
+      const alreadyExists = !options.overwrite && (await destCpDir.exists());
+      if (alreadyExists) {
+        throw new Error(
+          `A file or directory already exists as "${options?.as ?? srcDir.name}" at "${destDir.path || "{sandbox root}"}"`,
+        );
+      }
+
+      copiedContents = [destCpDir];
     }
 
-    return this.#sandbox.dirOps.cp(srcDir, destDir, {
+    await this.#sandbox.dirOps.cp(srcDir, destDir, {
       errorOnExist: true,
       force: options.overwrite,
       recursive: options.recursive,
       contentsOnly: options.contentsOnly,
       as: options.as,
     });
+
+    return copiedContents;
   }
 
   /**

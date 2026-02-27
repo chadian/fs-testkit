@@ -876,18 +876,69 @@ describe("Dir", () => {
       destDir = sandbox.dir("dest-dir");
 
       dirOpsStubs.cp.resolves();
+      dirOpsStubs.readdir.resolves(
+        // eslint-disable-next-line jsdoc/reject-any-type
+        /** @type {any} */ ([
+          { name: "file-a.md", isDirectory: () => false },
+          { name: "sub-dir", isDirectory: () => true },
+          { name: "file-b.js", isDirectory: () => false },
+        ]),
+      );
       mockDirExists(srcDir, true);
       mockDirExists(destDir, true);
     });
 
     test("it can copy a directory", async () => {
-      await srcDir.copyTo(destDir);
+      const result = await srcDir.copyTo(destDir);
       assert.strictEqual(dirOpsStubs.cp.calledOnce, true);
       assert.deepEqual(dirOpsStubs.cp.firstCall.args, [
         srcDir,
         destDir,
         defaultDirOpsCpOptions,
       ]);
+
+      assert.deepEqual(
+        result.map((item) => ({
+          class: item.constructor.name,
+          path: item.path,
+        })),
+        [
+          { class: "File", path: "dest-dir/file-a.md" },
+          { class: "Dir", path: "dest-dir/sub-dir" },
+          { class: "File", path: "dest-dir/file-b.js" },
+        ],
+      );
+    });
+
+    test("it can copy a directory as a specific name (as, contentsOnly: false)", async () => {
+      mockDirExists(destDir.dir("renamed-dir"), false);
+
+      const result = await srcDir.copyTo(destDir, {
+        contentsOnly: false,
+        as: "renamed-dir",
+      });
+
+      assert.strictEqual(dirOpsStubs.cp.calledOnce, true);
+
+      assert.deepEqual(dirOpsStubs.cp.firstCall.args, [
+        srcDir,
+        destDir,
+        {
+          errorOnExist: true,
+          as: "renamed-dir",
+          contentsOnly: false,
+          force: false,
+          recursive: true,
+        },
+      ]);
+
+      assert.deepEqual(
+        result.map((item) => ({
+          class: item.constructor.name,
+          path: item.path,
+        })),
+        [{ class: "Dir", path: "dest-dir/renamed-dir" }],
+      );
     });
 
     test("specified options are passed through", async () => {
