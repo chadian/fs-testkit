@@ -1,7 +1,7 @@
 import { File } from "./file.js";
 import { buildPath } from "./utils/build-path.js";
 import { isAbsolute, parse, resolve, sep, join, basename } from "node:path";
-import { isScaffoldDir, leaves } from "./utils/scaffold.js";
+import { isScaffoldDir, scaffold } from "./utils/scaffold.js";
 import { tree, treeString } from "./utils/tree.js";
 import { contains } from "./utils/path.js";
 import assert from "node:assert";
@@ -290,50 +290,27 @@ export class Dir {
    *
    * By default `options.prettier` option will based on the option passed to the sandbox.
    * Only files with known extensions to prettier can be prettier.
-   * @param {import("./types.js").ScaffoldDir} scaffoldDir
-   * @param {object} [options]
-   * @param {boolean} [options.overwrite]
-   * @param {boolean} [options.prettier]
-   * @returns {Promise<void>}
+   * @template {import("./types.js").ScaffoldDir} T
+   * @template {import("./types.js").ScaffoldOptions} [Opts={}]
+   * @param {T} scaffoldDir
+   * @param {Opts} [options]
+   * @returns {Promise<import("./types.js").ScaffoldResult<T, Opts>>}
    */
   async scaffold(scaffoldDir, options) {
-    const fileOptions = {
-      overwrite: true,
+    const dir = this;
+
+    const resolvedOptions = /** @type {Required<Opts>} */ ({
+      overwrite: false,
+      includeDirInstances: false,
       prettier: this.#sandbox.options.prettier,
       ...options,
-    };
+    });
 
     if (!isScaffoldDir(scaffoldDir)) {
       throw new Error("A type of `ScaffoldDir` must be passed in");
     }
 
-    await Promise.all(
-      leaves(scaffoldDir).map(async (leaf) => {
-        const fileOrDir = this.at(leaf.path.join(sep), leaf.type);
-
-        if (fileOrDir instanceof File && leaf.type === "File") {
-          /** @type {Parameters<File['create']>} */
-          let args;
-          if (!Array.isArray(leaf.file)) {
-            args = [leaf.file, fileOptions];
-          } else {
-            let [contents, options] = leaf.file;
-            options =
-              typeof options === "object"
-                ? { ...fileOptions, ...options }
-                : fileOptions;
-
-            args = [contents, options];
-          }
-
-          await fileOrDir.create(...args);
-        }
-
-        if (fileOrDir instanceof Dir) {
-          await fileOrDir.create();
-        }
-      }),
-    );
+    return scaffold(dir, scaffoldDir, resolvedOptions);
   }
 
   /**
