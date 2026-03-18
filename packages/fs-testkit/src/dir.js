@@ -157,7 +157,7 @@ export class Dir {
    * Provides the contents of the directory as an array of `Dir` and `File` instances
    * Alias for {@link Dir.contents}
    * @param {Parameters<Dir["contents"]>[0]} options
-   * @returns {ReturnType<Dir["contents"]>}
+   * @returns {Promise<(Dir | File)[]>}
    */
   async read(options) {
     return this.contents(options);
@@ -257,7 +257,7 @@ export class Dir {
    * Returns true if the directory exists on the filesystem, otherwise false,
    * based on fs.access(file, F_OK).
    * Implementation subject to change
-   * @returns {ReturnType<SandboxDirOperations['exists']>}
+   * @returns {Promise<boolean>}
    */
   async exists() {
     const dir = this;

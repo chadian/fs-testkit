@@ -83,7 +83,7 @@ export class File {
   /**
    * Reads the contents of the file
    * @param {Parameters<SandboxFileOperations['read']>[1]} [options]
-   * @returns {ReturnType<SandboxFileOperations['read']>}
+   * @returns {Promise<Buffer | string>}
    */
   read(options) {
     const file = this;
@@ -93,7 +93,7 @@ export class File {
   /**
    * @alias File.read
    * @param {Parameters<SandboxFileOperations['read']>[1]} [options]
-   * @returns {ReturnType<SandboxFileOperations['read']>}
+   * @returns {Promise<Buffer | string>}
    */
   contents(options) {
     return this.read(options);
@@ -295,7 +295,7 @@ export class File {
    * Not exactly the same as `exists` but should work in most cases
    * based on access(file, F_OK). See: https://github.com/nodejs/node/issues/39960
    * Implementation subject to change
-   * @returns {ReturnType<SandboxFileOperations['exists']>}
+   * @returns {Promise<boolean>}
    */
   async exists() {
     const file = this;
