@@ -504,7 +504,7 @@ describe("File", () => {
 
     fileOpsStubs.rm.callsFake(async () => {});
     const result = await file.delete();
-    assert.strictEqual(result, undefined);
+    assert.strictEqual(result, file);
     assert.strictEqual(fileOpsStubs.rm.calledOnce, true);
     assert.strictEqual(fileOpsStubs.rm.firstCall.args[0], file);
   });

@@ -206,7 +206,7 @@ export class File {
    * it's a known extension prettier can manage.
    * @param {Parameters<SandboxFileOperations['write']>[1]} contents
    * @param {Parameters<SandboxFileOperations['write']>[2] & { prettier?: boolean; overwrite?: boolean }} [options]
-   * @returns {ReturnType<SandboxFileOperations['write']>}
+   * @returns {Promise<this>}
    */
   async write(contents, options) {
     const defaults = {
@@ -264,27 +264,30 @@ export class File {
       }
     }
 
-    return this.#sandbox.fileOps.write(file, contents, options);
+    await this.#sandbox.fileOps.write(file, contents, options);
+    return this;
   }
 
   /**
    * @alias File.write
    * @param {Parameters<SandboxFileOperations['write']>[1]} contents
    * @param {Parameters<SandboxFileOperations['write']>[2] & { prettier?: boolean; overwrite?: boolean }} [options]
-   * @returns {ReturnType<SandboxFileOperations['write']>}
+   * @returns {Promise<this>}
    */
   async create(contents, options) {
-    return this.write(contents, options);
+    await this.write(contents, options);
+    return this;
   }
 
   /**
    * Check the access of the directory on the filesystem
    * @param {Parameters<SandboxFileOperations['access']>[1]} mode
-   * @returns {ReturnType<SandboxFileOperations['access']>}
+   * @returns {Promise<this>}
    */
   async access(mode) {
     const file = this;
-    return this.#sandbox.fileOps.access(file, mode);
+    await this.#sandbox.fileOps.access(file, mode);
+    return this;
   }
 
   /**
@@ -301,11 +304,12 @@ export class File {
 
   /**
    * Delete the directory on the filesystem
-   * @returns {Promise<void>}
+   * @returns {Promise<this>}
    */
   async delete() {
     const file = this;
-    return this.#sandbox.fileOps.rm(file);
+    await this.#sandbox.fileOps.rm(file);
+    return this;
   }
 
   /**
