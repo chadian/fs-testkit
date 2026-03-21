@@ -187,7 +187,7 @@ export class Dir {
   /**
    * Rename the name of the directory on the filesystem
    * @param {string} newDirname
-   * @returns {Promise<Dir>}
+   * @returns {Promise<Dir>} Returns a `Dir` representing the renamed directory at its new path
    */
   async rename(newDirname) {
     const dir = this;
@@ -207,7 +207,7 @@ export class Dir {
   /**
    * Move the directory to a new parent directory on the filesystem
    * @param {Dir} newParent
-   * @returns {Promise<Dir>}
+   * @returns {Promise<Dir>} Returns a `Dir` representing the moved directory at its new path
    */
   async move(newParent) {
     const dir = this;
@@ -294,7 +294,7 @@ export class Dir {
    * @template {import("./types.js").ScaffoldOptions} [Opts={}]
    * @param {T} scaffoldDir
    * @param {Opts} [options]
-   * @returns {Promise<import("./types.js").ScaffoldResult<T, Opts>>}
+   * @returns {Promise<import("./types.js").ScaffoldResult<T, Opts>>} Returns an object representing the scaffolded structure, with the same shape as the scaffoldDir argument. By default `Dir` instances are not included unless `options.includeDirInstances` is true.
    */
   async scaffold(scaffoldDir, options) {
     const dir = this;

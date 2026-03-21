@@ -102,7 +102,7 @@ export class File {
   /**
    * Rename the name of the file
    * @param {string} newFilename
-   * @returns {Promise<File>}
+   * @returns {Promise<File>} Returns a `File` representing the renamed file
    */
   async rename(newFilename) {
     const file = this;
@@ -121,7 +121,7 @@ export class File {
   /**
    * Move the file to a new parent directory on the filesystem
    * @param {Dir} newParent
-   * @returns {Promise<File>}
+   * @returns {Promise<File>} Returns a `File` representing the moved file at its new path
    */
   async move(newParent) {
     const file = this;
