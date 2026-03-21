@@ -358,10 +358,10 @@ export class Dir {
   }
 
   /**
-   * Creates a unique hash for the current directory and its contents based on the filesystem.
+   * Creates a unique hash for the directory and its contents based on the filesystem, optionally for a given snapshot.
    * Two directories represented by the same hash have the same contents.
    * @param {string} [snapshot]
-   * @returns {Promise<string | undefined>}
+   * @returns {Promise<string | undefined>} Returns hash string if the directory exists for the given snapshot or the current filesystem, otherwise returns undefined
    */
   async hash(snapshot) {
     if (!snapshot) {
