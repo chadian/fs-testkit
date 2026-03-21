@@ -154,7 +154,7 @@ export class File {
    * @param {object} [options]
    * @param {boolean} [options.overwrite]
    * @param {string} [options.as]
-   * @returns {Promise<void>}
+   * @returns {Promise<File>} Returns a `File` representing the copied destination path
    */
   async copyTo(destDir, options) {
     options = {
@@ -182,9 +182,8 @@ export class File {
       );
     }
 
-    const alreadyExists =
-      !options.overwrite &&
-      (await destDir.file(options?.as ?? srcFile.name).exists());
+    const destFile = await destDir.file(options?.as ?? srcFile.name);
+    const alreadyExists = !options.overwrite && (await destFile.exists());
 
     if (alreadyExists) {
       throw new Error(
@@ -192,10 +191,12 @@ export class File {
       );
     }
 
-    return this.#sandbox.fileOps.cp(srcFile, destDir, {
+    await this.#sandbox.fileOps.cp(srcFile, destDir, {
       force: options.overwrite,
       as: options.as,
     });
+
+    return destFile;
   }
 
   /**
