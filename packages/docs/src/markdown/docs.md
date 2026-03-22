@@ -7,7 +7,7 @@ Features:
 
 - A simple API to quickly scaffold the file system with files and directories,
   handle pathing, and run filesystem operations
-- Use snapshots to capture the state of the filesytem and then restore to those
+- Use snapshots to capture the state of the filesystem and then restore to that
   existing state, or perform a diff between different states
 - Extract information in readable formats from the filesystem that make it
   clearer to read and write tests
@@ -62,11 +62,11 @@ const sandbox = await createSandbox({ prettier: true });
 ```
 
 Scaffolding an entire nested file tree can be done quickly using
-`Sandbox.scaffold`:
+[`Sandbox.scaffold`](#scaffolding):
 
 ```js
 await sandbox.scaffold({
-  // this is invalid json but it will prettier'd into valid json
+  // this is invalid json but it will be prettier'd into valid json
   // because the prettier option is enabled
   "package.json": `
     {
@@ -86,7 +86,7 @@ await sandbox.scaffold({
     "index.js": `
       import { writeFile } from "fs/promises";
 
-      export default function async helloWorld() {
+      export default async function helloWorld() {
         console.log("hello world!");
         await writeFile("hello-world.txt", "hello world!");
       }
@@ -242,7 +242,7 @@ for more information.
 A `Sandbox` instance can be created synchronously, and then set up
 asynchronously. Calling the
 [`setup`](/fs-testkit/-api/sandbox.Class.Sandbox#setup) method is required
-before anything any filesytem operations can be ran.
+before any filesystem operations can be run.
 
 ```js
 import { Sandbox } from "fs-testkit/sandbox";
@@ -302,7 +302,7 @@ Under the hood automatic cleanup works by performing two passes:
 ## `Dir`
 
 The `Dir` instance represents a reference to a location within the sandbox root.
-Creating an instance does not mean that it exists on the fileystem, it's only a
+Creating an instance does not mean that it exists on the filesystem, it's only a
 reference, although `Dir` does have
 [methods for managing filesystem operations](#dir-filesystem-operations).
 
@@ -333,7 +333,7 @@ const parent = dir.parent;
 ```
 
 One of the advantages of a `Dir` is that it makes it easy to traverse a file
-tree in a chainable fashion where the pathing can return a `Dir` or `File`:
+tree in a chaining fashion where the pathing can return a `Dir` or `File`:
 
 ```js
 // pathing chains through multiple instances of `Dir`
@@ -343,7 +343,7 @@ const file = dir.dir("packages").dir("core").file("package.json");
 const relativePathing = dir.at("packages/core/package.json");
 ```
 
-Note: the `Dir.at` method assumes that something is a `Dir` or ` File` based on
+Note: the `Dir.at` method assumes that something is a `Dir` or `File` based on
 the ending having an extension or not, this can be controlled by specifying if
 it should be a `"File"` or `"Dir"`:
 
@@ -369,8 +369,8 @@ Traversing up can be done with `Dir.parent` or `".."` used within `Dir.at`:
 
 ```js
 const packagesDir = dir.dir("packages");
-const rootPackageJson = dirPackages.parent.file("package.json");
-const altRootPackageJson = dirPackages.at("../package.json");
+const rootPackageJson = packagesDir.parent.file("package.json");
+const altRootPackageJson = packagesDir.at("../package.json");
 ```
 
 ### Scaffolding
@@ -419,9 +419,9 @@ await dir.scaffold({
 });
 ```
 
-When using `scaffold` to specify the same options provided by
-[`File.create`](/fs-testkit/-api/file.Class.File#create) specify the file in an
-array tuple form:
+The `scaffold` method can specify the same arguments available to
+[`File.create`](/fs-testkit/-api/file.Class.File#create) by specifying the
+arguments as an array tuple:
 
 ```js
 await dir.scaffold({
@@ -432,6 +432,51 @@ await dir.scaffold({
     { prettier: true, overwrite: true },
   ],
 });
+```
+
+The return of `Dir.scaffold` includes a nested typed object of `File` instances
+that match the structure of the input. For example...
+
+```js
+const result = await dir.scaffold({
+  ["README.md"]: `# README`,
+
+  src: {
+    ["sub directory"]: {},
+    ["hello.js"]: `console.log('hello world');`,
+  },
+});
+```
+
+... would create a `result` represented by a matching nested object of `File`
+instances:
+
+```js
+{
+  ["README.md"]: File,
+
+  src: {
+    ["sub directory"]: {},
+    ["hello.js"]: File,
+  },
+}
+```
+
+The `Dir` instances are not included unless the `options.includeDirInstances` is
+set to `true` in which case the result would include a `__dir` representing the
+current object's `Dir` instance:
+
+```js
+{
+  __dir: Dir
+  ["README.md"]: File,
+
+  src: {
+    __dir: Dir
+    ["sub directory"]: { __dir: Dir },
+    ["hello.js"]: File,
+  },
+}
 ```
 
 ### Filesystem Structure
@@ -505,12 +550,11 @@ See the [`Dir` API documentation](/fs-testkit/-api/dir.Class.Dir) for more.
 
 `Dir` instances support the following filesystem operations:
 
-[`read`](/fs-testkit/-api/dir.Class.Dir#read))
-
-- [`contents`](/fs-testkit/-api/dir.Class.Dir#contents) (alias
+- [`contents`](/fs-testkit/-api/dir.Class.Dir#contents) /
+  [`read`](/fs-testkit/-api/dir.Class.Dir#read)
 - [`create`](/fs-testkit/-api/dir.Class.Dir#create)
 - [`delete`](/fs-testkit/-api/dir.Class.Dir#delete)
-- [`exists`](/fs-testkit/-api/dir.Class.Dir#create)
+- [`exists`](/fs-testkit/-api/dir.Class.Dir#exists)
 - [`hash`](/fs-testkit/-api/dir.Class.Dir#hash)
 - [`move`](/fs-testkit/-api/dir.Class.Dir#move)
 - [`rename`](/fs-testkit/-api/dir.Class.Dir#rename)
@@ -526,7 +570,7 @@ set of methods available.
 
 ## `File`
 
-The `File` instance represents a reference to location of a file within the
+The `File` instance represents a reference to a location of a file within the
 sandbox directory. The existence of the instance does not mean the file actually
 exists, but that can be determined by using its
 [filesystem operations](#file-filesystem-operations).
@@ -536,11 +580,11 @@ capabilities of `File`.
 
 ### Creating (or updating) a file on the filesystem
 
-One of the most common filesystem operation with a `Files` instance is to create
-a file. This can be done with the `write` method (or its alias `create`). If the
-file is being updated/replaced then the `{ overwrite: true }` option must be
-passed. The global prettier option can be overridden on a case-by-case basis by
-passing in the `{ prettier }` option.
+Creating a file is one of the most common `File` filesystem operations. This can
+be done with the `write` method (or its alias `create`). If the file is being
+updated/replaced then the `{ overwrite: true }` option must be passed. The
+global prettier option can be overridden on a case-by-case basis by passing in
+the `{ prettier }` option.
 
 ```js
 await dir.file("hello-world.md").write(
@@ -557,7 +601,7 @@ With supporting file types the prettier option can be useful to preserve
 indentation in the editor but have the final output look pretty on the
 filesystem.
 
-See the [other fileystem operations](#file-filesystem-operations) available on
+See the [other filesystem operations](#file-filesystem-operations) available on
 `File`.
 
 ### Diffing
@@ -606,8 +650,8 @@ filesystem to a previous state. Snapshot methods are accessed via
 ### Creating Snapshots
 
 Creating a snapshot captures the current state of the filesystem. If a string is
-is specified it will be used to name the snapshot, otherwise a random uuid
-string will be used and returned.
+specified it will be used to name the snapshot, otherwise a random uuid string
+will be used and returned.
 
 ```js
 await sandbox.snapshot.create("any unique string");
@@ -645,11 +689,12 @@ directory.
 
 ```js
 const diffs = await sandbox.root.diff("snapshot-a", "snapshot-b");
-const diffs = await sandbox.root.diff("snapshot-a", "snapshot-b", {
+// or
+const diffs2 = await sandbox.root.diff("snapshot-a", "snapshot-b", {
   includeDirs: false,
 });
 
-console.log(diff);
+console.log(diffs);
 ```
 
 The logged output would be an array of diff objects like:
@@ -699,7 +744,7 @@ For the following example with an initial `snapshot-a` of `src/data.json`:
 }
 ```
 
-And being modified in `snapshot-b` with the addition the
+And being modified in `snapshot-b` with the addition of the
 `"bonjour": "le monde",`:
 
 ```json
@@ -767,7 +812,7 @@ Index: src/data.json
 ```
 
 Files treated as blobs can be diffed with
-[`File.diffblob`](/fs-testkit/-api/file.Class.File#diffblob):
+[`File.diffBlob`](/fs-testkit/-api/file.Class.File#diffblob):
 
 ```js
 const diff = await sandbox.root.at("src/data.json").diffBlob("first", "second");
@@ -788,16 +833,16 @@ The log from `diffBlob` would output:
 ### Design
 
 `fs-testkit` is designed to make traversing the filesystem structure as easy as
-possible which is why the pathing APIs are chainable and synchronous. These
-pathing APIs represent locations within the sandbox root directory, but it's
-only when using the async methods on a `File` or `Dir` instance that the
-filesystem is used. In summary, `sandbox.at("random/path")` might not actually
-exist, but it can be created with `await sandbox.at("random/path").create()` or
-checked to see if it exists with `await sandbox.at("random/path").exists()`.
+possible by providing pathing APIs that can be chained together. These pathing
+APIs represent locations within the sandbox root directory, but it's only when
+using the async methods on a `File` or `Dir` instance that the filesystem is
+used. In summary, `sandbox.at("random/path")` might not actually exist, but it
+can be created with `await sandbox.at("random/path").create()` or checked to see
+if it exists with `await sandbox.at("random/path").exists()`.
 
-The `Sandbox` has guaranteed to have a root on the filesystem after
+The `Sandbox` is guaranteed to have a root on the filesystem after
 `Sandbox.setup` is called (which is also called as part of `createSandbox`). The
-sandbox root directory separates the the files being tested from the tests and
+sandbox root directory separates the files being tested from the tests and
 source directories which ensures that the operations are contained.
 
 Snapshots use a git implementation. Using a git implementation allows for
@@ -831,10 +876,10 @@ Often test scenarios that use the filesystem are tricky because:
 
 The library tries to address these issues by including:
 
-- A simple api to get quickly set up, handle pathing for files and directories
+- A simple API to get quickly set up, handle pathing for files and directories
   and run filesystem operations
-- An easy way of creating and compare diffs between different filesystem states
-  using snapshots
-- Methods to extract human readable from the state of the filesystem
+- An easy way of creating and comparing diffs between different filesystem
+  states using snapshots
+- Methods to extract human-readable information from the state of the filesystem
 - Compatible assertions to use in your favourite test framework (work in
   progress for vitest, jest, and chai)
