@@ -1,4 +1,9 @@
+import { Dir } from "./dir.js";
 import { File } from "./file.js";
+
+export interface ObjectTree<FileRepresentation> {
+  [name: string]: ScaffoldDir<FileRepresentation> | FileRepresentation;
+}
 
 export type ScaffoldFileContents = Parameters<File["create"]>[0];
 export type ScaffoldFileOptions = Parameters<File["create"]>[1];
@@ -7,12 +12,31 @@ export type ScaffoldFile =
   | ScaffoldFileContents
   | [ScaffoldFileContents, ScaffoldFileOptions];
 
-interface ObjectTree<FileRepresentation> {
-  [name: string]: ScaffoldDir | FileRepresentation<FileRepresentation>;
-}
-
 export type ScaffoldDir<FileRepresentation = ScaffoldFile> =
   ObjectTree<FileRepresentation>;
+
+export type ScaffoldOptions = {
+  includeDirInstances?: boolean;
+  overwrite?: boolean;
+  prettier?: boolean;
+};
+
+type ScaffoldResultDir<Opts extends ScaffoldOptions> = Opts extends {
+  includeDirInstances: true;
+}
+  ? { __dir: Dir }
+  : {};
+
+export type ScaffoldResult<
+  T extends ScaffoldDir,
+  Opts extends ScaffoldOptions = {},
+> = {
+  [K in keyof T]: T[K] extends ScaffoldFile
+    ? File
+    : T[K] extends ScaffoldDir
+      ? ScaffoldResult<T[K], Opts> & ScaffoldResultDir<Opts>
+      : never;
+} & ScaffoldResultDir<Opts>;
 
 export type AssertionFunction<Actual, Args> = (
   actual: Actual,

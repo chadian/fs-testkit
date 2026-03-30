@@ -292,11 +292,14 @@ export class Sandbox {
 
   /**
    * Scaffold nested files and directories on the file system, from the sandbox root
-   * @param {import("./types.js").ScaffoldDir} scaffoldDir
-   * @returns {ReturnType<Dir['scaffold']>}
+   * @template {import("./types.js").ScaffoldDir} T
+   * @template {import("./types.js").ScaffoldOptions} [Opts={}]
+   * @param {T} scaffoldDir
+   * @param {Opts} [options]
+   * @returns {Promise<import("./types.js").ScaffoldResult<T, Opts>>}
    */
-  async scaffold(scaffoldDir) {
-    return this.#root.scaffold(scaffoldDir);
+  async scaffold(scaffoldDir, options) {
+    return this.#root.scaffold(scaffoldDir, options);
   }
 
   /**

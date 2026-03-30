@@ -437,7 +437,7 @@ describe("Dir", () => {
       .resolves();
 
     const result = await dir.access();
-    assert.strictEqual(result, undefined);
+    assert.strictEqual(result, dir);
     assert.strictEqual(existsStub.calledOnce, true);
   });
 
@@ -564,67 +564,134 @@ describe("Dir", () => {
       const mkdirStub = dirOpsStubs.mkdir;
       const writeCallStub = fileOpsStubs.write;
 
-      const checkFsOpForPath = (
-        /** @type {import("./test-utils/sandbox.js").SinonStub} */ fsOpStub,
-        /** @type {string[]} */ directories,
-      ) =>
-        Boolean(
-          fsOpStub
-            .getCalls()
-            .find(
-              (call) =>
-                call.args[0].absolutePath ===
-                join(mockTempRootPath, ...directories),
-            ),
-        );
-
-      assert(checkFsOpForPath(mkdirStub, ["hello-world", "emptyDirectory"]));
-      assert(checkFsOpForPath(mkdirStub, ["hello-world", "directory"]));
-      assert(
-        checkFsOpForPath(mkdirStub, [
-          "hello-world",
-          "directory",
-          "subDirectory",
-        ]),
-      );
-      assert(
-        checkFsOpForPath(mkdirStub, [
-          "hello-world",
-          "directory",
-          "emptySubDirectory",
-        ]),
+      sinon.assert.calledWith(
+        mkdirStub,
+        sinon.match.has(
+          "absolutePath",
+          join(mockTempRootPath, "hello-world", "emptyDirectory"),
+        ),
       );
 
-      assert(checkFsOpForPath(writeCallStub, ["hello-world", "rootFile"]));
-      assert(
-        checkFsOpForPath(writeCallStub, [
-          "hello-world",
-          "rootFileWithPrettierOff.json",
-        ]),
+      sinon.assert.calledWith(
+        mkdirStub,
+        sinon.match.has(
+          "absolutePath",
+          join(mockTempRootPath, "hello-world", "directory"),
+        ),
       );
-      assert(
-        checkFsOpForPath(writeCallStub, [
-          "hello-world",
-          "rootFileWithPrettierOn.json",
-        ]),
+
+      sinon.assert.calledWith(
+        mkdirStub,
+        sinon.match.has(
+          "absolutePath",
+          join(mockTempRootPath, "hello-world", "directory", "subDirectory"),
+        ),
       );
-      assert(
-        checkFsOpForPath(writeCallStub, ["hello-world", "directory", "file"]),
+
+      sinon.assert.calledWith(
+        mkdirStub,
+        sinon.match.has(
+          "absolutePath",
+          join(
+            mockTempRootPath,
+            "hello-world",
+            "directory",
+            "emptySubDirectory",
+          ),
+        ),
       );
-      assert(
-        checkFsOpForPath(writeCallStub, [
-          "hello-world",
-          "directory",
-          "fileWithExtension.md",
-        ]),
+
+      sinon.assert.calledWith(
+        writeCallStub,
+        sinon.match.has(
+          "absolutePath",
+          join(mockTempRootPath, "hello-world", "rootFile"),
+        ),
       );
-      assert(
-        checkFsOpForPath(writeCallStub, [
-          "hello-world",
-          "directory",
-          "subDirectory",
-          "subDirectoryFile",
-        ]),
+
+      sinon.assert.calledWith(
+        writeCallStub,
+        sinon.match.has(
+          "absolutePath",
+          join(mockTempRootPath, "hello-world", "rootFileWithPrettierOff.json"),
+        ),
+      );
+
+      sinon.assert.calledWith(
+        writeCallStub,
+        sinon.match.has(
+          "absolutePath",
+          join(mockTempRootPath, "hello-world", "rootFileWithPrettierOn.json"),
+        ),
+      );
+
+      sinon.assert.calledWith(
+        writeCallStub,
+        sinon.match.has(
+          "absolutePath",
+          join(mockTempRootPath, "hello-world", "directory", "file"),
+        ),
+      );
+
+      sinon.assert.calledWith(
+        writeCallStub,
+        sinon.match.has(
+          "absolutePath",
+          join(
+            mockTempRootPath,
+            "hello-world",
+            "directory",
+            "fileWithExtension.md",
+          ),
+        ),
+      );
+
+      sinon.assert.calledWith(
+        writeCallStub,
+        sinon.match.has(
+          "absolutePath",
+          join(
+            mockTempRootPath,
+            "hello-world",
+            "directory",
+            "subDirectory",
+            "subDirectoryFile",
+          ),
+        ),
+      );
+    });
+
+    test("it includes __dir instances on directory objects when includeDirInstances: true", async () => {
+      const dir = new Dir({
+        name: "hello-world",
+        sandbox,
+        parent: sandbox.root,
+      });
+
+      const result = await dir.scaffold(
+        {
+          rootFile: `root file contents`,
+          subDir: {
+            nestedFile: `nested file contents`,
+            deepDir: {},
+          },
+        },
+        { includeDirInstances: true },
+      );
+
+      assert.strictEqual(result.__dir instanceof Dir, true);
+      assert.strictEqual(result.__dir.absolutePath, dir.absolutePath);
+
+      assert.strictEqual(result.subDir.__dir instanceof Dir, true);
+      assert.strictEqual(
+        result.subDir.__dir.absolutePath,
+        join(mockTempRootPath, "hello-world", "subDir"),
+      );
+
+      assert.strictEqual(result.subDir.deepDir.__dir instanceof Dir, true);
+      assert.strictEqual(
+        result.subDir.deepDir.__dir.absolutePath,
+        join(mockTempRootPath, "hello-world", "subDir", "deepDir"),
       );
     });
 
@@ -641,6 +708,126 @@ describe("Dir", () => {
             // eslint-disable-next-line jsdoc/reject-any-type
             /** @type {any} */ ("not a valid scaffold dir shape"),
           ),
+      );
+    });
+
+    test("it passes default options to file writes and empty directory creation", async () => {
+      const dir = new Dir({
+        name: "hello-world",
+        sandbox,
+        parent: sandbox.root,
+      });
+
+      await dir.scaffold({
+        "root.md": `root contents`,
+        emptyDir: {},
+      });
+
+      const expectedDefaults = { overwrite: false, prettier: false };
+
+      assert.deepEqual(
+        fileOpsStubs.write.firstCall.args[2],
+        expectedDefaults,
+        "files are written with overwrite: false and prettier: false (sandbox default)",
+      );
+
+      assert.strictEqual(
+        dirOpsStubs.mkdir.calledWith(
+          sinon.match.has(
+            "absolutePath",
+            join(mockTempRootPath, "hello-world", "emptyDir"),
+          ),
+          { recursive: true },
+        ),
+        true,
+      );
+    });
+
+    test("it passes specified options through to file writes", async () => {
+      const dir = new Dir({
+        name: "hello-world",
+        sandbox,
+        parent: sandbox.root,
+      });
+
+      const expectedOptions = { overwrite: true, prettier: true };
+
+      await dir.scaffold(
+        {
+          "README.md": `# README`,
+        },
+        expectedOptions,
+      );
+
+      assert.deepEqual(
+        fileOpsStubs.write.firstCall.args[2],
+        expectedOptions,
+        `options passed to write files should be what was passed in the scaffold options argument`,
+      );
+    });
+
+    test("per-file options override global scaffold options", async () => {
+      const dir = new Dir({
+        name: "hello-world",
+        sandbox,
+        parent: sandbox.root,
+      });
+
+      const defaultOptions = { overwrite: true, prettier: true };
+      const overridenPerFileOptions = { overwrite: false, prettier: false };
+
+      await dir.scaffold(
+        {
+          "without-options.md": `contents`,
+          "with-options.md": [`contents`, overridenPerFileOptions],
+          "with-partial-options.md": [
+            `contents`,
+            { overwrite: false }, // prettier should still be true from the default options
+          ],
+        },
+        defaultOptions,
+      );
+
+      assert.strictEqual(
+        fileOpsStubs.write.calledWith(
+          sinon.match.has(
+            "absolutePath",
+            join(mockTempRootPath, "hello-world", "without-options.md"),
+          ),
+          sinon.match.any,
+          sinon.match(defaultOptions),
+        ),
+        true,
+        "file without per-file options uses options passed to #scaffold",
+      );
+
+      assert.strictEqual(
+        fileOpsStubs.write.calledWith(
+          sinon.match.has(
+            "absolutePath",
+            join(mockTempRootPath, "hello-world", "with-options.md"),
+          ),
+          sinon.match.any,
+          sinon.match(overridenPerFileOptions),
+        ),
+        true,
+        "file with per-file options receives overridden option",
+      );
+
+      assert.strictEqual(
+        fileOpsStubs.write.calledWith(
+          sinon.match.has(
+            "absolutePath",
+            join(mockTempRootPath, "hello-world", "with-partial-options.md"),
+          ),
+          sinon.match.any,
+          sinon.match({
+            overwrite: false,
+            prettier: true,
+          }),
+        ),
+        true,
+        "file with partial per-file options receives a mix of overridden and default options",
       );
     });
   });
@@ -876,18 +1063,69 @@ describe("Dir", () => {
       destDir = sandbox.dir("dest-dir");
 
       dirOpsStubs.cp.resolves();
+      dirOpsStubs.readdir.resolves(
+        // eslint-disable-next-line jsdoc/reject-any-type
+        /** @type {any} */ ([
+          { name: "file-a.md", isDirectory: () => false },
+          { name: "sub-dir", isDirectory: () => true },
+          { name: "file-b.js", isDirectory: () => false },
+        ]),
+      );
       mockDirExists(srcDir, true);
       mockDirExists(destDir, true);
     });
 
     test("it can copy a directory", async () => {
-      await srcDir.copyTo(destDir);
+      const result = await srcDir.copyTo(destDir);
       assert.strictEqual(dirOpsStubs.cp.calledOnce, true);
       assert.deepEqual(dirOpsStubs.cp.firstCall.args, [
         srcDir,
         destDir,
         defaultDirOpsCpOptions,
       ]);
+
+      assert.deepEqual(
+        result.map((item) => ({
+          class: item.constructor.name,
+          path: item.path,
+        })),
+        [
+          { class: "File", path: "dest-dir/file-a.md" },
+          { class: "Dir", path: "dest-dir/sub-dir" },
+          { class: "File", path: "dest-dir/file-b.js" },
+        ],
+      );
+    });
+
+    test("it can copy a directory as a specific name (as, contentsOnly: false)", async () => {
+      mockDirExists(destDir.dir("renamed-dir"), false);
+
+      const result = await srcDir.copyTo(destDir, {
+        contentsOnly: false,
+        as: "renamed-dir",
+      });
+
+      assert.strictEqual(dirOpsStubs.cp.calledOnce, true);
+
+      assert.deepEqual(dirOpsStubs.cp.firstCall.args, [
+        srcDir,
+        destDir,
+        {
+          errorOnExist: true,
+          as: "renamed-dir",
+          contentsOnly: false,
+          force: false,
+          recursive: true,
+        },
+      ]);
+
+      assert.deepEqual(
+        result.map((item) => ({
+          class: item.constructor.name,
+          path: item.path,
+        })),
+        [{ class: "Dir", path: "dest-dir/renamed-dir" }],
+      );
     });
 
     test("specified options are passed through", async () => {
@@ -1009,6 +1247,7 @@ describe("Dir", () => {
         stat: sinonSandbox.stub().resolves({ isDirectory: () => true }),
         access: sinonSandbox.stub(),
         cp: sinonSandbox.stub().resolves(),
+        readdir: sinonSandbox.stub().resolves(),
       };
 
       const {
@@ -1027,13 +1266,33 @@ describe("Dir", () => {
       // source absolute path being copied should exist
       fsModuleMocks.access.withArgs(sinon.match(srcAbsolutePath)).resolves();
 
+      fsModuleMocks.readdir
+        .withArgs(sinon.match(srcAbsolutePath), { withFileTypes: true })
+        .resolves([
+          { name: "README.md", isDirectory: () => false },
+          { name: "src", isDirectory: () => true },
+          { name: "package.json", isDirectory: () => false },
+        ]);
+
       destDir = sandbox.root;
       mockDirExists(destDir, true);
       await sandbox.setup();
     });
 
     test("it can copy a directory", async () => {
-      await sandbox.root.copyFromExternal(srcAbsolutePath);
+      const result = await sandbox.root.copyFromExternal(srcAbsolutePath);
+
+      assert.deepEqual(
+        result.map((fileInstance) => ({
+          class: fileInstance.constructor.name,
+          path: fileInstance.path,
+        })),
+        [
+          { class: "File", path: "README.md" },
+          { class: "Dir", path: "src" },
+          { class: "File", path: "package.json" },
+        ],
+      );
 
       assert.strictEqual(fsModuleMocks.cp.calledOnce, true);
       assert.deepEqual(fsModuleMocks.cp.firstCall.args, [
@@ -1041,6 +1300,32 @@ describe("Dir", () => {
         destDir.absolutePath,
         defaultFsModuleCpOptions,
       ]);
+      assert.strictEqual(fsModuleMocks.readdir.calledOnce, true);
+    });
+
+    test("it can copy a directory as a specific name (as, contentsOnly: false)", async () => {
+      mockDirExists(destDir.dir("renamed-dir"), false);
+
+      const result = await sandbox.root.copyFromExternal(srcAbsolutePath, {
+        contentsOnly: false,
+        as: "renamed-dir",
+      });
+
+      assert.strictEqual(fsModuleMocks.cp.calledOnce, true);
+
+      assert.deepEqual(fsModuleMocks.cp.firstCall.args, [
+        srcAbsolutePath,
+        join(destDir.absolutePath, "renamed-dir"),
+        defaultFsModuleCpOptions,
+      ]);
+
+      assert.deepEqual(
+        result.map((item) => ({
+          class: item.constructor.name,
+          path: item.path,
+        })),
+        [{ class: "Dir", path: "renamed-dir" }],
+      );
     });
 
     test("specified options are passed through", async () => {

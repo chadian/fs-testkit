@@ -83,7 +83,7 @@ export class File {
   /**
    * Reads the contents of the file
    * @param {Parameters<SandboxFileOperations['read']>[1]} [options]
-   * @returns {ReturnType<SandboxFileOperations['read']>}
+   * @returns {Promise<Buffer | string>}
    */
   read(options) {
     const file = this;
@@ -93,7 +93,7 @@ export class File {
   /**
    * @alias File.read
    * @param {Parameters<SandboxFileOperations['read']>[1]} [options]
-   * @returns {ReturnType<SandboxFileOperations['read']>}
+   * @returns {Promise<Buffer | string>}
    */
   contents(options) {
     return this.read(options);
@@ -102,7 +102,7 @@ export class File {
   /**
    * Rename the name of the file
    * @param {string} newFilename
-   * @returns {Promise<File>}
+   * @returns {Promise<File>} Returns a `File` representing the renamed file
    */
   async rename(newFilename) {
     const file = this;
@@ -121,7 +121,7 @@ export class File {
   /**
    * Move the file to a new parent directory on the filesystem
    * @param {Dir} newParent
-   * @returns {Promise<File>}
+   * @returns {Promise<File>} Returns a `File` representing the moved file at its new path
    */
   async move(newParent) {
     const file = this;
@@ -154,7 +154,7 @@ export class File {
    * @param {object} [options]
    * @param {boolean} [options.overwrite]
    * @param {string} [options.as]
-   * @returns {Promise<void>}
+   * @returns {Promise<File>} Returns a `File` representing the copied destination path
    */
   async copyTo(destDir, options) {
     options = {
@@ -182,9 +182,8 @@ export class File {
       );
     }
 
-    const alreadyExists =
-      !options.overwrite &&
-      (await destDir.file(options?.as ?? srcFile.name).exists());
+    const destFile = await destDir.file(options?.as ?? srcFile.name);
+    const alreadyExists = !options.overwrite && (await destFile.exists());
 
     if (alreadyExists) {
       throw new Error(
@@ -192,10 +191,12 @@ export class File {
       );
     }
 
-    return this.#sandbox.fileOps.cp(srcFile, destDir, {
+    await this.#sandbox.fileOps.cp(srcFile, destDir, {
       force: options.overwrite,
       as: options.as,
     });
+
+    return destFile;
   }
 
   /**
@@ -206,7 +207,7 @@ export class File {
    * it's a known extension prettier can manage.
    * @param {Parameters<SandboxFileOperations['write']>[1]} contents
    * @param {Parameters<SandboxFileOperations['write']>[2] & { prettier?: boolean; overwrite?: boolean }} [options]
-   * @returns {ReturnType<SandboxFileOperations['write']>}
+   * @returns {Promise<this>}
    */
   async write(contents, options) {
     const defaults = {
@@ -264,27 +265,30 @@ export class File {
       }
     }
 
-    return this.#sandbox.fileOps.write(file, contents, options);
+    await this.#sandbox.fileOps.write(file, contents, options);
+    return this;
   }
 
   /**
    * @alias File.write
    * @param {Parameters<SandboxFileOperations['write']>[1]} contents
    * @param {Parameters<SandboxFileOperations['write']>[2] & { prettier?: boolean; overwrite?: boolean }} [options]
-   * @returns {ReturnType<SandboxFileOperations['write']>}
+   * @returns {Promise<this>}
    */
   async create(contents, options) {
-    return this.write(contents, options);
+    await this.write(contents, options);
+    return this;
   }
 
   /**
    * Check the access of the directory on the filesystem
    * @param {Parameters<SandboxFileOperations['access']>[1]} mode
-   * @returns {ReturnType<SandboxFileOperations['access']>}
+   * @returns {Promise<this>}
    */
   async access(mode) {
     const file = this;
-    return this.#sandbox.fileOps.access(file, mode);
+    await this.#sandbox.fileOps.access(file, mode);
+    return this;
   }
 
   /**
@@ -292,7 +296,7 @@ export class File {
    * Not exactly the same as `exists` but should work in most cases
    * based on access(file, F_OK). See: https://github.com/nodejs/node/issues/39960
    * Implementation subject to change
-   * @returns {ReturnType<SandboxFileOperations['exists']>}
+   * @returns {Promise<boolean>}
    */
   async exists() {
     const file = this;
@@ -301,11 +305,12 @@ export class File {
 
   /**
    * Delete the directory on the filesystem
-   * @returns {Promise<void>}
+   * @returns {Promise<this>}
    */
   async delete() {
     const file = this;
-    return this.#sandbox.fileOps.rm(file);
+    await this.#sandbox.fileOps.rm(file);
+    return this;
   }
 
   /**

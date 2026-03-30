@@ -385,7 +385,16 @@ describe("Dirs", () => {
       await sandboxA.scaffold({ ["README.md"]: readmeContents });
 
       const sandboxB = await createSandbox();
-      await sandboxB.root.copyFromExternal(sandboxA.root.absolutePath);
+      const result = await sandboxB.root.copyFromExternal(
+        sandboxA.root.absolutePath,
+      );
+
+      assert.deepEqual(
+        result.map((item) => item.path),
+        ["README.md"],
+        "returned array contains correct `File` instance",
+      );
+
       assert.strictEqual(
         await sandboxB.root.treeString(),
         `
@@ -404,12 +413,20 @@ describe("Dirs", () => {
       await sandboxA.scaffold({ dir: { ["README.md"]: readmeContents } });
 
       const sandboxB = await createSandbox();
-      await sandboxB.root.copyFromExternal(
+
+      const result = await sandboxB.root.copyFromExternal(
         sandboxA.root.dir("dir").absolutePath,
         {
           contentsOnly: false,
         },
       );
+
+      assert.deepEqual(
+        result.map((item) => item.path),
+        ["dir"],
+        "returned array contains correct `Dir` instance",
+      );
+
       assert.strictEqual(
         await sandboxB.root.treeString(),
         `
@@ -826,6 +843,70 @@ describe("Snapshots", async () => {
 });
 
 describe("Scaffolding", () => {
+  test("#scaffold returns a tree of Dir and File instances mirroring the scaffoldDir shape", async () => {
+    const sandbox = await createSandbox();
+
+    const scaffoldInput = {
+      "README.md": `# Hello`,
+      src: {
+        "index.js": `export default {}`,
+        utils: {
+          "helpers.js": `export const noop = () => {}`,
+        },
+        emptyDir: {},
+      },
+    };
+
+    const result = await sandbox.scaffold(scaffoldInput);
+
+    /**
+     * @param {File | import("./types.js").ScaffoldDir<File>} node
+     * @returns {object}
+     */
+    const mapResult = (node) => {
+      if (node instanceof File) {
+        return { class: node.constructor.name, path: node.path };
+      }
+      return Object.fromEntries(
+        Object.entries(node).map(([k, v]) => [k, mapResult(v)]),
+      );
+    };
+
+    assert.deepStrictEqual(mapResult(result), {
+      "README.md": { class: "File", path: "README.md" },
+      src: {
+        "index.js": { class: "File", path: "src/index.js" },
+        utils: {
+          "helpers.js": { class: "File", path: "src/utils/helpers.js" },
+        },
+        emptyDir: {},
+      },
+    });
+
+    const {
+      "README.md": readmeFile,
+      src: {
+        "index.js": indexFile,
+        utils: { "helpers.js": helpersFile },
+        emptyDir: emptyDir,
+      },
+    } = result;
+
+    assert.strictEqual(
+      (await readmeFile.contents()).toString(),
+      scaffoldInput["README.md"],
+    );
+    assert.strictEqual(
+      (await indexFile.contents()).toString(),
+      scaffoldInput.src["index.js"],
+    );
+    assert.strictEqual(
+      (await helpersFile.contents()).toString(),
+      scaffoldInput.src.utils["helpers.js"],
+    );
+    assert.deepEqual(emptyDir, scaffoldInput.src.emptyDir);
+  });
+
   test("#scaffold", async () => {
     const sandbox = await createSandbox();
     await sandbox.scaffold({

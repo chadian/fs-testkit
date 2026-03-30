@@ -26,7 +26,8 @@ export async function tree(
       const stats = await fs.stat(absoluteChildPath);
 
       if (stats.isDirectory()) {
-        const subTreeObject = {};
+        const subTreeObject =
+          /** @type {import("../types.js").ObjectTree<string>} */ ({});
         const subDir = dir.dir(name);
         treeObject[name] = subTreeObject;
         await tree(fs, subDir, textFileMask, blobFileMask, subTreeObject);

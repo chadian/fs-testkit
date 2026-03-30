@@ -1,3 +1,11 @@
+import { basename, join } from "path";
+
+/** @typedef {import('../dir.js').Dir} Dir  */
+/** @typedef {import('../file.js').File} File  */
+/** @typedef {import("../types.js").ScaffoldDir} ScaffoldDir  */
+/** @typedef {import("../types.js").ScaffoldFile} ScaffoldFile  */
+/** @typedef {import("../types.js").ScaffoldOptions} ScaffoldOptions  */
+
 /**
  * @param {unknown} thing
  * @returns {unknown is import("../types.js").ScaffoldDir}
@@ -73,37 +81,93 @@ export function isScaffoldContents(thing) {
 
   return false;
 }
+
 /**
- * @param {import("../types.js").ScaffoldDir} scaffoldDir
- * @param {string[]} path
- * @param {({path: string[]; type: 'File'; file: import("../types.js").ScaffoldFile } | {path: string[]; type: 'Dir';})[]} leafs
- * @returns {({ path: string[]; type: "File"; file: import("../types.js").ScaffoldFile; } | { path: string[]; type: "Dir"; })[]}
+ * @template {ScaffoldDir} T
+ * @template {ScaffoldOptions} [Opts={}]
+ * @param {Dir} rootDir
+ * @param {T} scaffolding
+ * @param {Required<Opts>} options
+ * @returns {Promise<import("../types.js").ScaffoldResult<T, Opts>>}
  */
-export function leaves(scaffoldDir, path = [], leafs = []) {
-  for (const [name, fileOrDir] of Object.entries(scaffoldDir)) {
-    const currentPath = [...path, name];
-
-    if (isEmptyScaffoldDir(fileOrDir)) {
-      leafs.push({ path: currentPath, type: "Dir" });
-      continue;
-    }
-
-    if (isScaffoldFile(fileOrDir)) {
-      leafs.push({
-        path: currentPath,
-        type: "File",
-        // @ts-ignore
-        file: fileOrDir,
-      });
-      continue;
-    }
-
-    leaves(
-      /** @type {import("../types.js").ScaffoldDir} */ (fileOrDir),
-      currentPath,
-      leafs
+export async function scaffold(rootDir, scaffolding, options) {
+  const scaffoldResult =
+    /** @type {import("../types.js").ScaffoldResult<T, Opts>} */ (
+      options.includeDirInstances ? { __dir: rootDir } : {}
     );
+
+  /** @type {Promise<unknown>[]} */
+  const promises = [];
+
+  /**
+   * @type {{
+   *   path: string;
+   *   parentScaffoldDirResult: import("../types.js").ScaffoldResult<T, Opts>;
+   *   value: ScaffoldFile | ScaffoldDir;
+   * }[]}
+   */
+  const entries = Object.entries(scaffolding).map(([name, value]) => ({
+    value,
+    path: name,
+    parentScaffoldDirResult: scaffoldResult,
+  }));
+
+  for (const { path, value, parentScaffoldDirResult } of entries) {
+    const name = basename(path);
+    if (isScaffoldDir(value)) {
+      const dir = /** @type {Dir} */ (rootDir.at(path, "Dir"));
+
+      const scaffoldDirResult = options.includeDirInstances
+        ? { __dir: dir }
+        : {};
+
+      // @ts-ignore
+      parentScaffoldDirResult[name] = scaffoldDirResult;
+
+      // only empty directories need to be created,
+      // files are always leaf nodes and will create their parent directories as needed
+      if (isEmptyScaffoldDir(value)) {
+        promises.push(dir.create({ recursive: true }));
+      } else {
+        // directory is not empty
+        Object.entries(value).forEach(([childName, childValue]) =>
+          entries.push({
+            value: childValue,
+            path: join(path, childName),
+            parentScaffoldDirResult:
+              /** @type {import("../types.js").ScaffoldResult<T, Opts>} */ (
+                scaffoldDirResult
+              ),
+          }),
+        );
+      }
+    } else if (isScaffoldFile(value)) {
+      const file = /** @type {File} */ (
+        /** @type {unknown} */ (rootDir.at(path, "File"))
+      );
+      // eslint-disable-next-line jsdoc/reject-any-type
+      /** @type {Record<string, any>} */ (parentScaffoldDirResult)[name] = file;
+
+      const { overwrite, prettier } = options;
+      const fileOptions = { overwrite, prettier };
+
+      // @ts-ignore
+      const [fileContents, individualFileOptions] = isScaffoldContents(value)
+        ? [value, {}]
+        : value;
+
+      promises.push(
+        file.create(fileContents, { ...fileOptions, ...individualFileOptions }),
+      );
+    } else {
+      // ensure the return type is narrowed, realistically this should never be hit since
+      // it the input should be checked and handled in the layer above
+      throw new Error(
+        `Invalid scaffolding type, was not a recognized as a scaffoldable structure: ${JSON.stringify(value)}`,
+      );
+    }
   }
 
-  return leafs;
+  await Promise.all(promises);
+  return scaffoldResult;
 }

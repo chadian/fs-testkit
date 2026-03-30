@@ -1,7 +1,7 @@
 import { File } from "./file.js";
 import { buildPath } from "./utils/build-path.js";
 import { isAbsolute, parse, resolve, sep, join, basename } from "node:path";
-import { isScaffoldDir, leaves } from "./utils/scaffold.js";
+import { isScaffoldDir, scaffold } from "./utils/scaffold.js";
 import { tree, treeString } from "./utils/tree.js";
 import { contains } from "./utils/path.js";
 import assert from "node:assert";
@@ -141,19 +141,23 @@ export class Dir {
    * Creates the directory on the filesystem. By default, intermediate directories are
    * recursively created, this can be changed by providing a `options.recursive` argument
    * @param {Parameters<SandboxDirOperations['mkdir']>[1]} [options]
-   * @returns {Promise<void>}
+   * @returns {Promise<this>}
    */
   async create(options) {
     const dir = this;
     options = options ?? {};
     options = typeof options === "object" ? options : { mode: options };
     options = { recursive: true, ...options };
-    return this.#sandbox.dirOps.mkdir(dir, options).then(() => {});
+    await this.#sandbox.dirOps.mkdir(dir, options);
+
+    return dir;
   }
 
   /**
+   * Provides the contents of the directory as an array of `Dir` and `File` instances
+   * Alias for {@link Dir.contents}
    * @param {Parameters<Dir["contents"]>[0]} options
-   * @returns {ReturnType<Dir["contents"]>}
+   * @returns {Promise<(Dir | File)[]>}
    */
   async read(options) {
     return this.contents(options);
@@ -183,7 +187,7 @@ export class Dir {
   /**
    * Rename the name of the directory on the filesystem
    * @param {string} newDirname
-   * @returns {Promise<Dir>}
+   * @returns {Promise<Dir>} Returns a `Dir` representing the renamed directory at its new path
    */
   async rename(newDirname) {
     const dir = this;
@@ -203,7 +207,7 @@ export class Dir {
   /**
    * Move the directory to a new parent directory on the filesystem
    * @param {Dir} newParent
-   * @returns {Promise<Dir>}
+   * @returns {Promise<Dir>} Returns a `Dir` representing the moved directory at its new path
    */
   async move(newParent) {
     const dir = this;
@@ -238,21 +242,22 @@ export class Dir {
   }
 
   /**
-   * Check the access of the directory on the filesystem
+   * Check the access of the directory on the filesystem, returned promise rejects if not accessible,
+   * otherwise resolves
    * @param {Parameters<SandboxDirOperations['access']>[1]} [mode]
-   * @returns {ReturnType<SandboxDirOperations['access']>}
+   * @returns {Promise<this>}
    */
   async access(mode) {
     const dir = this;
-    return this.#sandbox.dirOps.access(dir, mode);
+    await this.#sandbox.dirOps.access(dir, mode);
+    return dir;
   }
 
   /**
-   * Check the access of the directory on the filesystem
-   * Not exactly the same as `exists` but should work in most cases
-   * based on access(file, F_OK). See: https://github.com/nodejs/node/issues/39960
+   * Returns true if the directory exists on the filesystem, otherwise false,
+   * based on fs.access(file, F_OK).
    * Implementation subject to change
-   * @returns {ReturnType<SandboxDirOperations['exists']>}
+   * @returns {Promise<boolean>}
    */
   async exists() {
     const dir = this;
@@ -263,13 +268,14 @@ export class Dir {
   /**
    * Delete the directory on the filesystem
    * @param {Parameters<SandboxDirOperations['rm']>[1]} [options]
-   * @returns {ReturnType<SandboxDirOperations['rm']>}
+   * @returns {Promise<this>}
    */
   async delete(options) {
     const dir = this;
     options = options ?? options;
     options = { recursive: true, force: true, ...options };
-    return this.#sandbox.dirOps.rm(dir, options);
+    await this.#sandbox.dirOps.rm(dir, options);
+    return dir;
   }
 
   /**
@@ -284,50 +290,27 @@ export class Dir {
    *
    * By default `options.prettier` option will based on the option passed to the sandbox.
    * Only files with known extensions to prettier can be prettier.
-   * @param {import("./types.js").ScaffoldDir} scaffoldDir
-   * @param {object} [options]
-   * @param {boolean} [options.overwrite]
-   * @param {boolean} [options.prettier]
-   * @returns {Promise<void>}
+   * @template {import("./types.js").ScaffoldDir} T
+   * @template {import("./types.js").ScaffoldOptions} [Opts={}]
+   * @param {T} scaffoldDir
+   * @param {Opts} [options]
+   * @returns {Promise<import("./types.js").ScaffoldResult<T, Opts>>} Returns an object representing the scaffolded structure, with the same shape as the scaffoldDir argument. By default `Dir` instances are not included unless `options.includeDirInstances` is true.
    */
   async scaffold(scaffoldDir, options) {
-    const fileOptions = {
-      overwrite: true,
+    const dir = this;
+
+    const resolvedOptions = /** @type {Required<Opts>} */ ({
+      overwrite: false,
+      includeDirInstances: false,
       prettier: this.#sandbox.options.prettier,
       ...options,
-    };
+    });
 
     if (!isScaffoldDir(scaffoldDir)) {
       throw new Error("A type of `ScaffoldDir` must be passed in");
     }
 
-    await Promise.all(
-      leaves(scaffoldDir).map(async (leaf) => {
-        const fileOrDir = this.at(leaf.path.join(sep), leaf.type);
-
-        if (fileOrDir instanceof File && leaf.type === "File") {
-          /** @type {Parameters<File['create']>} */
-          let args;
-          if (!Array.isArray(leaf.file)) {
-            args = [leaf.file, fileOptions];
-          } else {
-            let [contents, options] = leaf.file;
-            options =
-              typeof options === "object"
-                ? { ...fileOptions, ...options }
-                : fileOptions;
-
-            args = [contents, options];
-          }
-
-          await fileOrDir.create(...args);
-        }
-
-        if (fileOrDir instanceof Dir) {
-          await fileOrDir.create();
-        }
-      }),
-    );
+    return scaffold(dir, scaffoldDir, resolvedOptions);
   }
 
   /**
@@ -375,10 +358,10 @@ export class Dir {
   }
 
   /**
-   * Creates a unique hash for the current directory and its contents based on the filesystem.
+   * Creates a unique hash for the directory and its contents based on the filesystem, optionally for a given snapshot.
    * Two directories represented by the same hash have the same contents.
    * @param {string} [snapshot]
-   * @returns {Promise<string | undefined>}
+   * @returns {Promise<string | undefined>} Returns hash string if the directory exists for the given snapshot or the current filesystem, otherwise returns undefined
    */
   async hash(snapshot) {
     if (!snapshot) {
@@ -418,7 +401,7 @@ export class Dir {
    * @param {boolean} [options.contentsOnly] defaults to true - Applies only when copying directories,
    * when true it copies the contents of the directory (equivalent to `cp src/ dist`),
    * when false it copies the directory and its contents (equivalent to `cp src dist`)
-   * @returns {Promise<void>}
+   * @returns {Promise<(Dir | File)[]>}
    */
   async copyTo(destDir, options) {
     options = {
@@ -455,27 +438,40 @@ export class Dir {
       );
     }
 
-    // `alreadyExists` checks for the case that a singular directory (not its contents)
-    // are attempting to be copied to a destination directory but already exists either
-    // as its `options.as` name if specified or the source directory's name
-    const alreadyExists =
-      !options.overwrite &&
-      !options.contentsOnly &&
-      (await destDir.dir(options?.as ?? srcDir.name).exists());
+    /** @type {(Dir | File)[]} */ let copiedContents;
 
-    if (alreadyExists) {
-      throw new Error(
-        `A file or directory already exists as "${options?.as ?? srcDir.name}" at "${destDir.path || "{sandbox root}"}"`,
+    if (options.contentsOnly) {
+      // Read source entries before copying so we track exactly what is copied.
+      // It's possible that this list could be out of sync with the actual copied
+      // contents if entries are changed between this read and the copy operation
+      const dirents = await this.#sandbox.dirOps.readdir(srcDir);
+      copiedContents = dirents.map((dirent) =>
+        dirent.isDirectory()
+          ? destDir.dir(dirent.name)
+          : destDir.file(dirent.name),
       );
+    } else {
+      const destCpDir = destDir.dir(options?.as ?? srcDir.name);
+
+      const alreadyExists = !options.overwrite && (await destCpDir.exists());
+      if (alreadyExists) {
+        throw new Error(
+          `A file or directory already exists as "${options?.as ?? srcDir.name}" at "${destDir.path || "{sandbox root}"}"`,
+        );
+      }
+
+      copiedContents = [destCpDir];
     }
 
-    return this.#sandbox.dirOps.cp(srcDir, destDir, {
+    await this.#sandbox.dirOps.cp(srcDir, destDir, {
       errorOnExist: true,
       force: options.overwrite,
       recursive: options.recursive,
       contentsOnly: options.contentsOnly,
       as: options.as,
     });
+
+    return copiedContents;
   }
 
   /**
@@ -489,7 +485,9 @@ export class Dir {
    * @param {boolean} [options.contentsOnly] defaults to true - Applies only when copying directories,
    * when true it copies the contents of the directory (equivalent to `cp src/ dist`),
    * when false it copies the directory and its contents (equivalent to `cp src dist`)
-   * @returns {Promise<void>}
+   * @returns {Promise<(Dir | File)[]>} Returns an array of `Dir` and/or `File` instances representing
+   * the copied items. When copying a directory and its contents (`options.contentsOnly` is false)
+   * the returned array contains a single `Dir` instance.
    */
   async copyFromExternal(srcPath, options) {
     options = {
@@ -532,9 +530,10 @@ export class Dir {
       );
     }
 
-    const srcIsDirectory = await (
+    const srcIsDirectory = (
       await this.#sandbox.options.fs.stat(srcPath)
     ).isDirectory();
+
     if (!srcIsDirectory) {
       throw new Error(
         `The source directory to be copied "${srcPath}" must be a directory`,
@@ -547,36 +546,46 @@ export class Dir {
       );
     }
 
-    // `alreadyExists` checks for the case that a singular directory (not its contents)
-    // are attempting to be copied to a destination directory but already exists either
-    // as its `options.as` name if specified or the source directory's name
-    const alreadyExists =
-      !options.overwrite &&
-      !options.contentsOnly &&
-      (await destDir.dir(options?.as ?? basename(srcPath)).exists());
+    /** @type {string} */ let srcCp;
+    /** @type {Dir} */ let destCpDir;
+    /** @type {(Dir | File)[]} */ let copiedContents;
 
-    if (alreadyExists) {
-      throw new Error(
-        `A file or directory already exists as "${options?.as ?? basename(srcPath)}" at "${destDir.path || "{sandbox root}"}"`,
-      );
-    }
-
-    // Copied from the sandbox-dir-operations implementation
-    let src, dest;
     if (options?.contentsOnly) {
-      src = join(srcPath, sep);
-      dest = destDir.absolutePath;
+      srcCp = join(srcPath, sep);
+      destCpDir = destDir;
+
+      // Read source entries before copying so we track exactly what is copied.
+      // It's possible that this list could be out of sync with the actual copied
+      // contents are changed between this read and the copy operation
+      const dirents = await this.#sandbox.options.fs.readdir(srcPath, {
+        withFileTypes: true,
+      });
+
+      copiedContents = dirents.map((dirent) =>
+        dirent.isDirectory()
+          ? destCpDir.dir(dirent.name)
+          : destCpDir.file(dirent.name),
+      );
     } else {
-      src = srcPath;
-      dest = destDir.dir(
-        options?.as ?? options?.as ?? basename(srcPath),
-      ).absolutePath;
+      srcCp = srcPath;
+      destCpDir = destDir.dir(options?.as ?? basename(srcPath));
+
+      const alreadyExists = !options.overwrite && (await destCpDir.exists());
+      if (alreadyExists) {
+        throw new Error(
+          `A file or directory already exists as "${options?.as ?? basename(srcPath)}" at "${destDir.path || "{sandbox root}"}"`,
+        );
+      }
+
+      copiedContents = [destCpDir];
     }
 
-    return this.#sandbox.options.fs.cp(src, dest, {
+    await this.#sandbox.options.fs.cp(srcCp, destCpDir.absolutePath, {
       errorOnExist: true,
       recursive: options.recursive,
       force: options.overwrite,
     });
+
+    return copiedContents;
   }
 }
