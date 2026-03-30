@@ -750,14 +750,14 @@ describe("Dir", () => {
         parent: sandbox.root,
       });
 
+      const expectedOptions = { overwrite: true, prettier: true };
+
       await dir.scaffold(
         {
           "README.md": `# README`,
         },
-        { overwrite: true, prettier: true },
+        expectedOptions,
       );
-
-      const expectedOptions = { overwrite: true, prettier: true };
 
       assert.deepEqual(
         fileOpsStubs.write.firstCall.args[2],
