@@ -102,21 +102,17 @@ export async function scaffold(rootDir, scaffolding, options) {
   /**
    * @type {{
    *   path: string;
-   *   parentScaffoldResult: import("../types.js").ScaffoldResult<T, Opts>;
+   *   parentScaffoldDirResult: import("../types.js").ScaffoldResult<T, Opts>;
    *   value: ScaffoldFile | ScaffoldDir;
    * }[]}
    */
   const entries = Object.entries(scaffolding).map(([name, value]) => ({
     value,
     path: name,
-    parentScaffoldResult: scaffoldResult,
+    parentScaffoldDirResult: scaffoldResult,
   }));
 
-  for (const {
-    path,
-    value,
-    parentScaffoldResult: parentScaffoldDirResult,
-  } of entries) {
+  for (const { path, value, parentScaffoldDirResult } of entries) {
     const name = basename(path);
     if (isScaffoldDir(value)) {
       const dir = /** @type {Dir} */ (rootDir.at(path, "Dir"));
@@ -138,7 +134,7 @@ export async function scaffold(rootDir, scaffolding, options) {
           entries.push({
             value: childValue,
             path: join(path, childName),
-            parentScaffoldResult:
+            parentScaffoldDirResult:
               /** @type {import("../types.js").ScaffoldResult<T, Opts>} */ (
                 scaffoldDirResult
               ),
