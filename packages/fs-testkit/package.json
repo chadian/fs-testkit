@@ -1,6 +1,6 @@
 {
   "name": "fs-testkit",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Testing utilities to write better tests that use the file system",
   "homepage": "https://chadian.github.io/fs-testkit/",
   "keywords": [
